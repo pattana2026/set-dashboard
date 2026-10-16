@@ -1,0 +1,8 @@
+# ห้ามเอาไฟล์ข้อมูลลูกค้าขึ้น GitHub
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+.DS_Store
+Thumbs.db
+_*

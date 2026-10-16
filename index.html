@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>SET Seal Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brandrow"><span class="brandmark">SET</span><div><h1>ติดตามสถานะงานตีตรา</h1><div class="eyebrow">งานตีตรา / ให้คำรับรองชั่งตวงวัด</div></div></div>
+    </div>
+    <div class="src">
+      <div class="srcinfo" id="srcinfo"></div>
+      <input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+      <button class="btn" id="usersBtn" type="button" hidden>จัดการผู้ใช้</button>
+      <button class="btn" id="pwBtn" type="button">เปลี่ยนรหัสผ่าน</button>
+      <button class="btn" id="logoutBtn" type="button">ออกจากระบบ</button>
+      <button class="btn primary" id="uploadBtn" type="button" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+        Upload ไฟล์ Excel
+      </button>
+    </div>
+  </header>
+  <div id="banner" hidden></div>
+  <div class="login" id="login" hidden>
+    <div class="lgbrand"><span class="brandmark">SET</span><div><h2>ติดตามสถานะงานตีตรา</h2><p class="muted">เข้าสู่ระบบด้วยบัญชีที่ผู้ดูแลสร้างให้</p></div></div>
+    <form id="lgForm" class="stack" autocomplete="on">
+      <label for="lgUser">ชื่อผู้ใช้หรืออีเมล</label>
+      <input id="lgUser" name="username" autocomplete="username" required>
+      <label for="lgPass">รหัสผ่าน</label>
+      <input id="lgPass" name="password" type="password" autocomplete="current-password" required>
+      <button class="btn primary" id="lgBtn" type="submit">เข้าสู่ระบบ</button>
+    </form>
+    <p class="lgerr" id="lgErr" role="alert" hidden></p>
+    <p class="muted lgnote">ลืมรหัสผ่านหรือยังไม่มีบัญชี ติดต่อผู้ดูแล Dashboard</p>
+  </div>
+
+  <section class="filters" aria-label="ตัวกรอง">
+    <input type="search" id="q" placeholder="ค้นหา ID Station, ชื่อสถานี, Work order, Job no., Serial, เลขที่คำขอ, ผู้แจ้ง…">
+    <select id="fBrand" aria-label="Brand"></select>
+    <select id="fProc" aria-label="สถานะดำเนินการ"></select>
+    <select id="fSup" aria-label="Sup."></select>
+    <select id="fUser" aria-label="UserName"></select>
+    <select id="fMonth" aria-label="Month"></select>
+    <button class="clear" id="clearF" type="button">ล้างตัวกรอง</button>
+  </section>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="charts">
+    <div class="card">
+      <div class="hd"><h2>งานเปิดรายเดือน (Open date)</h2>
+        <div class="legend"><span><i style="background:var(--accent)"></i>ดำเนินการเรียบร้อย</span><span><i style="background:var(--pending)"></i>รอดำเนินการ</span></div></div>
+      <div id="chMonth"></div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>ครบรอบตีตรา 12 เดือนข้างหน้า (ครบรอบครั้งถัดไป)</h2><span class="muted" style="font-size:12px">คลิกแท่งเพื่อดูรายการ</span></div>
+      <div id="chRenew"></div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>จำนวนงานตาม Brand</h2><span class="muted" style="font-size:12px">คลิกเพื่อกรอง</span></div>
+      <div id="chBrand" class="hbars"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabRenew" aria-selected="true" type="button">ติดตามต่อสัญญารอบใหม่<span class="c" id="cRenew"></span></button>
+      <button class="tab" role="tab" id="tabAll" aria-selected="false" type="button">งานตีตราทั้งหมด<span class="c" id="cAll"></span></button>
+    </div>
+  </section>
+
+  <section class="panel" id="panelRenew">
+    <div class="furbar"><div class="chips" id="bucketChips"></div><select id="fFu" aria-label="กรองตามการติดตาม"></select></div>
+    <div class="tablebox"><div class="tscroll"><table id="tRenew"></table></div><div class="pager" id="pRenew"></div></div>
+  </section>
+  <section class="panel" id="panelAll" hidden>
+    <div class="tablebox"><div class="tscroll"><table id="tAll"></table></div><div class="pager" id="pAll"></div></div>
+  </section>
+
+  <p class="foot">
+    SerialNumber / InstallDate / WarrantDate: แสดงค่าเมื่อไฟล์ที่ Upload (หรือ SMS API) มีคอลัมน์ชื่อเหล่านี้ ถ้ายังไม่มีข้อมูลจะเว้นว่างไว้<br>
+    ต้องเข้าสู่ระบบจึงจะเห็นข้อมูล · เมื่อผู้ดูแล Upload ไฟล์ Excel ทุกคนจะเห็นข้อมูลชุดใหม่ทันที สถานะการติดตามลูกค้าบันทึกร่วมกันและไม่หายเมื่อ Upload ไฟล์ใหม่ (ผูกกับ Job no.) — เมื่อเชื่อม SMS ได้จะเปลี่ยนเป็นดึงข้อมูลอัตโนมัติ
+  </p>
+</div>
+
+<div class="drawer" id="drawer" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <div><div class="muted" style="font-size:12px" id="dSub"></div><h2 id="dTitle" style="font-size:18px"></h2></div>
+      <button class="btn" id="dClose" type="button">ปิด</button>
+    </div>
+    <div class="fubox" id="dFu" hidden></div>
+    <dl id="dBody"></dl>
+  </div>
+</div>
+<div class="drawer" id="panel2" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="p2Title">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <h2 id="p2Title" style="font-size:18px"></h2>
+      <button class="btn" id="p2Close" type="button">ปิด</button>
+    </div>
+    <div id="p2Body" class="stack"></div>
+  </div>
+</div>
+<div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
