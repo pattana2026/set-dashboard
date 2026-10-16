@@ -1,4 +1,6 @@
 "use strict";
+/* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
+const APP_VERSION = "1.4.0", APP_RELEASED = "16/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -83,7 +85,7 @@ function parseAOA(aoa){
 }
 
 /* ---------- state ---------- */
-const S={all:[],src:null,tab:"renew",bucket:"active",renewMonth:null,fu:{},names:{},fFu:"any",loadedV:null,
+const S={all:[],src:null,tab:"renew",bucket:"active",renewMonth:null,fu:{},names:{},fFu:"any",fAsg:"any",profiles:[],renRows:[],allRows:[],fuV2:false,loadedV:null,
   f:{q:"",brand:"",proc:"",sup:"",user:"",month:""},
   sort:{renew:{k:"next",d:1},all:{k:"open",d:-1}}, page:{renew:0,all:0}};
 const PAGE=50;
@@ -244,9 +246,19 @@ function telify(s){
 const telTxt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${telify(r[k])}</div>`:telify(r[k])});
 const dt=k=>({k,cls:"nw",r:r=>fmtD(r[k])});
 
+const fuOf=r=>(r.fuKey&&S.fu[r.fuKey])||{};
+const CLOSED=["renewed","declined"];
+function dueDays(f){ if(!f||!f.next||CLOSED.includes(f.s)) return null; const d=toDate(f.next); return d?Math.round((d-TODAY)/DAY):null; }
+const isDue=r=>{const d=dueDays(fuOf(r)); return d!==null&&d<=0;};
+const asgName=id=>id?(S.names[id]||"—"):"";
+function nextTag(f){ if(!f.next) return ""; const d=dueDays(f), dt=toDate(f.next);
+  const cls=d===null?"":d<0?" late":d===0?" today":"";
+  const lab=d===null?"":d<0?` (เลยนัด ${-d} วัน)`:d===0?" (วันนี้)":"";
+  return `<span class="ntag${cls}">📅 นัด ${fmtD(dt)}${lab}</span>`; }
 function fuCell(r){
-  const key=r.fuKey, f=key&&S.fu[key], st=(f&&f.s)||"";
-  const meta=f&&f.at?`<div class="fumeta">${f.note?esc(f.note)+"<br>":""}${esc(S.names[f.by]||"")} ${fmtDT(f.at)}</div>`:"";
+  const key=r.fuKey, f=fuOf(r), st=f.s||"";
+  const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
+  const meta=(tags?`<div class="futags">${tags}</div>`:"")+(f.at?`<div class="fumeta">${f.note?esc(f.note)+"<br>":""}${esc(S.names[f.by]||"")} ${fmtDT(f.at)}</div>`:"");
   if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม">${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
   const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}">${o.label}</span>${meta}`;
 }
@@ -288,7 +300,7 @@ function renderTable(which,rows,cols){
     <tbody>${slice.length?slice.map(r=>`<tr data-i="${S.all.indexOf(r)}">${cols.map(c=>`<td class="${c.cls||''}">${c.r(r)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${cols.length}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
   t.querySelectorAll("th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;s.d=s.k===k?-s.d:1;s.k=k;render();});
   t.querySelectorAll("tbody tr[data-i]").forEach(tr=>tr.onclick=e=>{if(e.target.closest("select,button,textarea,a"))return;if(window.getSelection().toString())return;openDrawer(S.all[+tr.dataset.i]);});
-  t.querySelectorAll(".fusel").forEach(sel=>sel.onchange=()=>{const k=sel.dataset.key;const f=S.fu[k];saveFU(k,sel.value,(f&&f.note)||"");});
+  t.querySelectorAll(".fusel").forEach(sel=>sel.onchange=()=>saveFU(sel.dataset.key,{s:sel.value}));
   const pg=$(which==="renew"?"pRenew":"pAll");
   pg.innerHTML=`<span class="muted">แสดง ${rows.length?nf(p*PAGE+1):0}–${nf(Math.min((p+1)*PAGE,rows.length))} จาก ${nf(rows.length)} รายการ</span>
     <span class="b"><button class="btn" type="button" data-d="-1" ${p===0?"disabled":""}>ก่อนหน้า</button><span class="muted" style="align-self:center">หน้า ${p+1}/${pages}</span><button class="btn" type="button" data-d="1" ${p>=pages-1?"disabled":""}>ถัดไป</button></span>`;
@@ -300,8 +312,16 @@ function renderTables(rows){
   else if(S.renewMonth!==null) ren=rows.filter(r=>r.due&&r.days>=0&&mKey(r.due)===S.renewMonth);
   else if(S.bucket==="active") ren=rows.filter(r=>["overdue","d30","d60","d90"].includes(r.bucket));
   else if(S.bucket!=="all") ren=rows.filter(r=>r.bucket===S.bucket);
-  if(S.fFu!=="any") ren=ren.filter(r=>((r.fuKey&&S.fu[r.fuKey]&&S.fu[r.fuKey].s)||"")===S.fFu);
+  if(typeof renderFuKpi==="function") renderFuKpi(ren);
+  if(S.fFu==="__due") ren=ren.filter(isDue);
+  else if(S.fFu==="__touched") ren=ren.filter(r=>!!fuOf(r).s);
+  else if(S.fFu!=="any") ren=ren.filter(r=>(fuOf(r).s||"")===S.fFu);
+  if(S.fAsg==="__me") ren=ren.filter(r=>fuOf(r).asg===UID);
+  else if(S.fAsg==="__none") ren=ren.filter(r=>!fuOf(r).asg);
+  else if(S.fAsg&&S.fAsg!=="any") ren=ren.filter(r=>fuOf(r).asg===S.fAsg);
+  S.renRows=ren; S.allRows=rows;
   $("cRenew").textContent=nf(ren.length); $("cAll").textContent=nf(rows.length);
+  if(typeof renderBulk==="function") renderBulk(ren);
   renderTable("renew",ren,COLS_RENEW); renderTable("all",rows,COLS_ALL);
 }
 function setTab(t){S.tab=t;$("tabRenew").setAttribute("aria-selected",t==="renew");$("tabAll").setAttribute("aria-selected",t==="all");$("panelRenew").hidden=t!=="renew";$("panelAll").hidden=t!=="all";try{localStorage.setItem("set-seal-tab",t)}catch(e){}}
@@ -319,14 +339,21 @@ function openDrawer(r){
   if(DB&&key){
     const who=f.at?`ล่าสุด: ${esc(S.names[f.by]||"")} ${fmtDT(f.at)}`:"ยังไม่มีการบันทึก";
     if(CAN_FU){
+      const people=S.profiles.filter(p=>p.role!=="viewer");
       box.innerHTML=`<h3>การติดตามลูกค้า</h3>
-        <select id="dFuS" aria-label="สถานะการติดตาม">${FU.map(o=>`<option value="${o.k}"${o.k===(f.s||"")?" selected":""}>${o.label}</option>`).join("")}</select>
+        <div class="fugrid">
+          <label>สถานะ<select id="dFuS">${FU.map(o=>`<option value="${o.k}"${o.k===(f.s||"")?" selected":""}>${o.label}</option>`).join("")}</select></label>
+          <label>นัดติดตามครั้งถัดไป<input type="date" id="dFuD" value="${esc(f.next||"")}"></label>
+          <label>ผู้รับผิดชอบ<select id="dFuA"><option value="">— ยังไม่มอบหมาย —</option>${people.map(p=>`<option value="${p.id}"${p.id===f.asg?" selected":""}>${esc(p.display_name||p.username)}${p.id===UID?" (ฉัน)":""}</option>`).join("")}</select></label>
+        </div>
         <textarea id="dFuN" rows="3" maxlength="1000" placeholder="บันทึก เช่น โทรคุยผู้จัดการสถานีแล้ว นัดยื่นคำขอสัปดาห์หน้า">${esc(f.note||"")}</textarea>
         <div class="furow"><button class="btn primary" id="dFuSave" type="button">บันทึกการติดตาม</button><span class="muted" id="dFuMsg">${who}</span></div>`;
-      $("dFuSave").onclick=async()=>{$("dFuSave").disabled=true;const ok=await saveFU(key,$("dFuS").value,$("dFuN").value.trim());$("dFuSave").disabled=false;if(ok)$("dFuMsg").textContent="บันทึกแล้ว · ทุกคนเห็นทันที";};
+      $("dFuSave").onclick=async()=>{$("dFuSave").disabled=true;
+        const ok=await saveFU(key,{s:$("dFuS").value,note:$("dFuN").value.trim(),next:$("dFuD").value||null,asg:$("dFuA").value||null});
+        $("dFuSave").disabled=false;if(ok)$("dFuMsg").textContent="บันทึกแล้ว · ทุกคนเห็นทันที";};
     }else{
       const o=FU.find(x=>x.k===(f.s||""))||FU[0];
-      box.innerHTML=`<h3>การติดตามลูกค้า</h3><div><span class="pill p-${o.cls}">${o.label}</span></div>${f.note?`<div style="white-space:pre-wrap">${esc(f.note)}</div>`:""}<div class="muted">${who}</div>`;
+      box.innerHTML=`<h3>การติดตามลูกค้า</h3><div class="futags"><span class="pill p-${o.cls}">${o.label}</span>${f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:""}${nextTag(f)}</div>${f.note?`<div style="white-space:pre-wrap">${esc(f.note)}</div>`:""}<div class="muted">${who}</div>`;
     }
   }
   $("drawer").hidden=false; $("dClose").focus();
@@ -370,6 +397,7 @@ async function fetchAll(table, cols, mod){
 async function loadProfiles(){
   S.profiles = await fetchAll("profiles", "id,username,display_name,role,created_at", q => q.order("created_at"));
   S.names = {}; S.profiles.forEach(p => S.names[p.id] = p.display_name || p.username || "");
+  if (typeof buildAsgOptions === "function") buildAsgOptions();
 }
 async function loadState(){
   const { data, error } = await DB.from("app_state").select("*").eq("id", 1).maybeSingle();
@@ -389,9 +417,12 @@ async function loadJobs(st){
   rows.forEach(r => aoa.push(SHARE_KEYS.map(k => (r.data && r.data[k] != null) ? r.data[k] : "")));
   load(aoa, {name: st.file_name, at: st.uploaded_at, by: st.uploaded_by, mode: "shared"});
 }
+const fuFromRow = r => ({s: r.status || "", note: r.note || "", next: r.next_date || null, asg: r.assignee || null, by: r.updated_by, at: r.updated_at});
 async function loadFU(){
-  const rows = await fetchAll("followups", "job_key,status,note,updated_by,updated_at");
-  S.fu = {}; rows.forEach(r => S.fu[r.job_key] = {s: r.status, note: r.note, by: r.updated_by, at: r.updated_at});
+  let rows;
+  try{ rows = await fetchAll("followups", "job_key,status,note,next_date,assignee,updated_by,updated_at"); S.fuV2 = true; }
+  catch(e){ rows = await fetchAll("followups", "job_key,status,note,updated_by,updated_at"); S.fuV2 = false; }
+  S.fu = {}; rows.forEach(r => S.fu[r.job_key] = fuFromRow(r));
 }
 
 async function publishShared(records, name){
@@ -415,18 +446,31 @@ async function publishShared(records, name){
 }
 
 const fuQueue = {};
-async function saveFU(key, s, note){
+function fuBody(key, f){ const b = {job_key: key, status: f.s || "", note: f.note || ""}; if (S.fuV2){ b.next_date = f.next || null; b.assignee = f.asg || null; } return b; }
+async function saveFU(key, patch){
   if (!DB || !CAN_FU){ banner("บัญชีนี้บันทึกการติดตามไม่ได้", "err"); return false; }
-  const prev = S.fu[key];
-  S.fu[key] = {s, note, by: UID, at: new Date().toISOString()}; render();
+  if (!S.fuV2 && (patch.next !== undefined || patch.asg !== undefined) && (patch.next || patch.asg)){ banner("ยังบันทึกวันนัด/ผู้รับผิดชอบไม่ได้ — ผู้ดูแลต้องรันไฟล์ supabase/v1.4.0.sql ก่อน", "err"); }
+  const prev = S.fu[key], cur = Object.assign({s:"", note:"", next:null, asg:null}, prev || {}, patch);
+  S.fu[key] = Object.assign({}, cur, {by: UID, at: new Date().toISOString()}); render();
   const run = async () => {
-    const { data, error } = await DB.from("followups").upsert({job_key: key, status: s, note}, {onConflict: "job_key"}).select().single();
+    const { data, error } = await DB.from("followups").upsert(fuBody(key, cur), {onConflict: "job_key"}).select().single();
     if (error) throw error;
-    S.fu[key] = {s: data.status, note: data.note, by: data.updated_by, at: data.updated_at};
+    S.fu[key] = fuFromRow(data);
   };
   const p = (fuQueue[key] || Promise.resolve()).catch(()=>{}).then(run); fuQueue[key] = p;
   try{ await p; render(); return true; }
   catch(e){ if (prev) S.fu[key] = prev; else delete S.fu[key]; render(); banner(sbMsg(e), "err"); return false; }
+}
+async function bulkAssign(rows, asg){
+  const keys = [...new Set(rows.map(r => r.fuKey).filter(Boolean))];
+  const body = keys.map(k => fuBody(k, Object.assign({s:"", note:"", next:null}, S.fu[k] || {}, {asg})));
+  for (let i = 0; i < body.length; i += 500){
+    banner(`กำลังมอบหมาย… ${nf(Math.min(i + 500, body.length))}/${nf(body.length)}`, "ok");
+    const { data, error } = await DB.from("followups").upsert(body.slice(i, i + 500), {onConflict: "job_key"}).select();
+    if (error) throw error;
+    (data || []).forEach(r => S.fu[r.job_key] = fuFromRow(r));
+  }
+  return keys.length;
 }
 
 function subscribe(){
@@ -435,7 +479,7 @@ function subscribe(){
     .on("postgres_changes", {event: "*", schema: "public", table: "followups"}, p => {
       const r = p.new;
       if (!r || !r.job_key) return;
-      S.fu[r.job_key] = {s: r.status, note: r.note, by: r.updated_by, at: r.updated_at};
+      S.fu[r.job_key] = fuFromRow(r);
       if (r.updated_by && !(r.updated_by in S.names)) loadProfiles().then(render).catch(()=>{});
       render();
     })
@@ -480,7 +524,62 @@ window.addEventListener("drop", e => { e.preventDefault(); dragN = 0; $("dropove
 /* ---------- filters & tabs ---------- */
 let qT; $("q").oninput = e => { clearTimeout(qT); qT = setTimeout(() => { S.f.q = e.target.value; S.page = {renew: 0, all: 0}; render(); }, 150); };
 ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).onchange = () => { syncF(); S.page = {renew: 0, all: 0}; render(); });
-$("fFu").innerHTML = `<option value="any">การติดตาม: ทั้งหมด</option>` + FU.map(o => `<option value="${o.k}">${o.label}</option>`).join("");
+$("fFu").innerHTML = `<option value="any">การติดตาม: ทั้งหมด</option><option value="__due">📅 ถึงกำหนดนัด (วันนี้ / เลยนัด)</option><option value="__touched">ติดต่อแล้ว (ทุกสถานะ)</option>` + FU.map(o => `<option value="${o.k}">${o.label}</option>`).join("");
+function buildAsgOptions(){
+  const people = (S.profiles || []).filter(p => p.role !== "viewer"), cur = S.fAsg || "any";
+  $("fAsg").innerHTML = `<option value="any">ผู้รับผิดชอบ: ทั้งหมด</option><option value="__me">👤 งานของฉัน</option><option value="__none">ยังไม่มอบหมาย</option>` + people.map(p => `<option value="${p.id}">${esc(p.display_name || p.username)}</option>`).join("");
+  $("fAsg").value = [...$("fAsg").options].some(o => o.value === cur) ? cur : "any"; S.fAsg = $("fAsg").value;
+}
+$("fAsg").onchange = e => { S.fAsg = e.target.value; S.page.renew = 0; render(); };
+function renderFuKpi(base){
+  const c = {total: base.length, none: 0, contacted: 0, waiting: 0, renewed: 0, declined: 0, due: 0};
+  base.forEach(r => { const f = fuOf(r); c[f.s || "none"]++; if (isDue(r)) c.due++; });
+  const touched = c.total - c.none, pct = n => c.total ? Math.round(n / c.total * 100) + "%" : "0%";
+  const box = (k, label, v, sub, cls) => `<button type="button" class="fk${cls ? " " + cls : ""}${S.fFu === k ? " on" : ""}" data-k="${k}"><span class="l">${label}</span><span class="v">${nf(v)}</span><span class="s">${sub}</span></button>`;
+  $("fuKpi").innerHTML = `<div class="fkh">ผลการติดตาม <span class="muted">· กลุ่มที่แสดงอยู่ ${nf(c.total)} รายการ</span></div><div class="fkrow">`
+    + box("__touched", "ติดต่อแล้ว", touched, `${pct(touched)} ของทั้งหมด`, "")
+    + box("", "ยังไม่ติดต่อ", c.none, pct(c.none), "")
+    + box("waiting", "รอลูกค้าตัดสินใจ", c.waiting, pct(c.waiting), "warn")
+    + box("renewed", "ตกลงต่อสัญญา", c.renewed, pct(c.renewed), "ok")
+    + box("declined", "ไม่ต่อสัญญา", c.declined, pct(c.declined), "bad")
+    + box("__due", "ถึงกำหนดนัด", c.due, "วันนี้ / เลยนัด", c.due ? "bad" : "") + `</div>`;
+  $("fuKpi").querySelectorAll(".fk").forEach(b => b.onclick = () => { S.fFu = (S.fFu === b.dataset.k ? "any" : b.dataset.k); $("fFu").value = S.fFu; S.page.renew = 0; render(); });
+}
+function renderBulk(rows){
+  const el = $("bulkAsg");
+  if (!CAN_UP || !S.fuV2){ el.innerHTML = ""; return; }
+  const people = (S.profiles || []).filter(p => p.role !== "viewer");
+  const keep = $("bkSel") ? $("bkSel").value : "";
+  el.innerHTML = `<select id="bkSel" aria-label="มอบหมายให้"><option value="">มอบหมายรายการที่แสดงให้…</option><option value="__clear">— ล้างผู้รับผิดชอบ —</option>${people.map(p => `<option value="${p.id}">${esc(p.display_name || p.username)}</option>`).join("")}</select><button class="btn" type="button" id="bkBtn" disabled>มอบหมาย ${nf(rows.length)} รายการ</button>`;
+  $("bkSel").value = keep; $("bkBtn").disabled = !keep || !rows.length;
+  $("bkSel").onchange = () => { $("bkBtn").disabled = !$("bkSel").value || !rows.length; $("bkBtn").dataset.armed = ""; $("bkBtn").textContent = `มอบหมาย ${nf(rows.length)} รายการ`; };
+  $("bkBtn").onclick = async () => {
+    const b = $("bkBtn");
+    if (b.dataset.armed !== "1"){ b.dataset.armed = "1"; b.textContent = `ยืนยันมอบหมาย ${nf(rows.length)} รายการ?`; return; }
+    b.disabled = true; const v = $("bkSel").value;
+    try{ const n = await bulkAssign(rows, v === "__clear" ? null : v); $("bkSel").value = ""; render(); banner(`มอบหมายแล้ว ${nf(n)} รายการ`, "ok"); }
+    catch(e){ banner(sbMsg(e), "err"); render(); }
+  };
+}
+/* ---------- Export Excel ---------- */
+const daysText = r => r.days === null ? "ไม่มีวันครบรอบ" : r.days < 0 ? `เลยมา ${-r.days} วัน` : r.days === 0 ? "ครบวันนี้" : `อีก ${r.days} วัน`;
+const fuLabel = r => (FU.find(o => o.k === (fuOf(r).s || "")) || FU[0]).label;
+const EXP_FU = [["การติดตาม", fuLabel, 16], ["นัดติดตามครั้งถัดไป", r => fuOf(r).next ? fmtD(toDate(fuOf(r).next)) : "", 14], ["ผู้รับผิดชอบ", r => asgName(fuOf(r).asg), 16], ["บันทึกการติดตาม", r => fuOf(r).note || "", 40], ["บันทึกล่าสุดโดย", r => fuOf(r).by ? (S.names[fuOf(r).by] || "") : "", 16], ["บันทึกล่าสุดเมื่อ", r => fuOf(r).at ? fmtDT(fuOf(r).at) : "", 17]];
+const EXP_RENEW = [["สถานะครบรอบ", daysText, 16], ["ครบรอบครั้งถัดไป", r => fmtD(r.next), 14], ...EXP_FU,
+  ["ID Station", r => r.code, 11], ["Name", r => r.name, 36], ["Brand", r => r.brand, 9], ["Other", r => r.other, 50], ["InformBy", r => r.inform, 32], ["Address", r => r.addr, 50], ["เลขที่คำขอออนไลน์", r => r.reqno, 18], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Sup.", r => r.sup, 26]];
+const EXP_ALL = [["สถานะดำเนินการ", r => r.proc, 16], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Open date", r => fmtD(r.open), 11], ["Finished date", r => fmtD(r.fin), 11], ["Brand", r => r.brand, 9], ["ID Station", r => r.code, 11], ["Name", r => r.name, 36], ["InformBy", r => r.inform, 32], ["UserName", r => r.user, 30], ["Sup.", r => r.sup, 26], ["Problem", r => r.problem, 40], ["Other", r => r.other, 50], ["Deadline", r => fmtD(r.deadline), 11], ["Address", r => r.addr, 50], ["Month", r => r.month, 9], ["เลขที่คำขอออนไลน์", r => r.reqno, 18], ["วันที่ยื่นคำขอ", r => fmtD(r.reqdate), 12], ["ครบรอบครั้งถัดไป", r => fmtD(r.next), 14], ["SerialNumber", r => r.serial, 20], ["InstallDate", r => fmtD(r.install), 11], ["WarrantDate", r => fmtD(r.warrant), 11], ["สถานะครบรอบ", daysText, 16], ["การติดตาม", fuLabel, 16]];
+function exportXlsx(which){
+  if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
+  const rows = sortRows((which === "renew" ? S.renRows : S.allRows) || [], S.sort[which]);
+  if (!rows.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
+  const cols = which === "renew" ? EXP_RENEW : EXP_ALL, name = which === "renew" ? "ติดตามต่อสัญญา" : "งานตีตราทั้งหมด";
+  const aoa = [cols.map(c => c[0]), ...rows.map(r => cols.map(c => { const v = c[1](r); return v == null ? "" : String(v); }))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = cols.map(c => ({wch: c[2] || 14})); ws["!autofilter"] = {ref: XLSX.utils.encode_range({s: {r: 0, c: 0}, e: {r: aoa.length - 1, c: cols.length - 1}})};
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, name);
+  XLSX.writeFile(wb, `SET-${name}-${isoD(new Date())}.xlsx`);
+  banner(`Export ${nf(rows.length)} รายการแล้ว`, "ok");
+}
+$("expRenew").onclick = () => exportXlsx("renew"); $("expAll").onclick = () => exportXlsx("all");
 $("fFu").onchange = e => { S.fFu = e.target.value; S.page.renew = 0; render(); };
 $("clearF").onclick = () => { S.f = {q:"",brand:"",proc:"",sup:"",user:"",month:""}; $("q").value = ""; ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).value = ""); S.renewMonth = null; S.page = {renew: 0, all: 0}; render(); };
 $("tabRenew").onclick = () => setTab("renew"); $("tabAll").onclick = () => setTab("all");
@@ -645,6 +744,7 @@ $("usersBtn").onclick = async () => { try{ await loadProfiles(); await loadUserE
 function renderWho(){ $("whoami").innerHTML = S.me ? `<span aria-hidden="true">👤</span> <b>${esc(S.me.name)}</b><span class="muted"> · ${ROLES[ROLE] || ""}</span>` : ""; $("whoami").hidden = !S.me; }
 
 /* ---------- boot ---------- */
+(function showVersion(){ const t=`SET Seal Tracker v${APP_VERSION} · ${APP_RELEASED}`; ["verLogin","verFoot"].forEach(id=>{const e=document.getElementById(id); if(e) e.textContent=t;}); })();
 (async function boot(){
   let t = "renew"; try{ t = localStorage.getItem("set-seal-tab") || "renew"; }catch(e){} setTab(t === "all" ? "all" : "renew");
   wrapEl.classList.add("locked");

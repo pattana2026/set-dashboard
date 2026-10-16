@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
+<!-- SET Seal Tracker v1.4.0 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
 <title>SET Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=1.4.0">
 </head>
 <body>
 <div class="wrap">
@@ -40,6 +41,7 @@
     </form>
     <p class="lgerr" id="lgErr" role="alert" hidden></p>
     <p class="muted lgnote">ลืมรหัสผ่านหรือยังไม่มีบัญชี ติดต่อผู้ดูแล Dashboard</p>
+    <p class="muted lgnote ver" id="verLogin"></p>
   </div>
 
   <section class="filters" aria-label="ตัวกรอง">
@@ -78,15 +80,22 @@
   </section>
 
   <section class="panel" id="panelRenew">
-    <div class="furbar"><div class="chips" id="bucketChips"></div><select id="fFu" aria-label="กรองตามการติดตาม"></select></div>
+    <div class="fukpi" id="fuKpi"></div>
+    <div class="chips" id="bucketChips"></div>
+    <div class="furbar">
+      <div class="furow"><select id="fFu" aria-label="กรองตามการติดตาม"></select><select id="fAsg" aria-label="กรองตามผู้รับผิดชอบ"></select></div>
+      <div class="furow"><span class="furow" id="bulkAsg"></span><button class="btn" id="expRenew" type="button">⬇ Export Excel</button></div>
+    </div>
     <div class="tablebox"><div class="tscroll"><table id="tRenew"></table></div><div class="pager" id="pRenew"></div></div>
   </section>
   <section class="panel" id="panelAll" hidden>
+    <div class="furbar"><span class="muted" style="font-size:12.5px">Export ตามตัวกรองและการเรียงที่แสดงอยู่</span><button class="btn" id="expAll" type="button">⬇ Export Excel</button></div>
     <div class="tablebox"><div class="tscroll"><table id="tAll"></table></div><div class="pager" id="pAll"></div></div>
   </section>
 
   <p class="foot">
     SerialNumber / InstallDate / WarrantDate: แสดงค่าเมื่อไฟล์ที่ Upload (หรือ SMS API) มีคอลัมน์ชื่อเหล่านี้ ถ้ายังไม่มีข้อมูลจะเว้นว่างไว้<br>
+    <span class="ver" id="verFoot"></span><br>
     ต้องเข้าสู่ระบบจึงจะเห็นข้อมูล · เมื่อผู้ดูแล Upload ไฟล์ Excel ทุกคนจะเห็นข้อมูลชุดใหม่ทันที สถานะการติดตามลูกค้าบันทึกร่วมกันและไม่หายเมื่อ Upload ไฟล์ใหม่ (ผูกกับ Job no.) — เมื่อเชื่อม SMS ได้จะเปลี่ยนเป็นดึงข้อมูลอัตโนมัติ
   </p>
 </div>
@@ -113,7 +122,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=1.4.0"></script>
+<script src="app.js?v=1.4.0"></script>
 </body>
 </html>
