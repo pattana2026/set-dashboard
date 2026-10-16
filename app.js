@@ -198,17 +198,27 @@ const pillDays=r=>{const b=BUCKETS.find(x=>x.k===r.bucket);
   const t=r.days===null?"ไม่มีวันครบรอบ":r.days<0?`เลยมา ${nf(-r.days)} วัน`:r.days===0?"ครบวันนี้":`อีก ${nf(r.days)} วัน`;
   return `<span class="pill p-${r.bucket}" title="${b.label}">${t}</span>`;};
 const dCell=(d,src)=>d?(src==="calc"?`<span class="derived" title="คำนวณจากข้อมูลในไฟล์">${fmtD(d)}</span>`:fmtD(d)):"";
-const snCell=r=>r.serial?`<span class="sn${r.serialSrc==='other'?' derived':''}" ${r.serialSrc==='other'?'title="ดึงจากช่อง Other"':''}>${esc(r.serial)}</span>`:'';
-const txt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${esc(r[k])}</div>`:esc(r[k])});
+const snCell=r=>r.serial?`<span class="sn${r.serialSrc==='other'?' derived':''}" ${r.serialSrc==='other'?'title="ดึงจากช่อง Other"':''}>${safe(r.serial)}</span>`:'';
+/* ตัวเลขที่ไม่ใช่เบอร์โทร (Work order, Job no., เลขทะเบียน ฯลฯ) ถูกแบ่งเป็นช่วงสั้นๆ ข้างในหน้าเว็บ
+   เพื่อไม่ให้ส่วนเสริม 3CX Click2Call จับไปเป็นเบอร์ — หน้าตาและการคัดลอกยังเหมือนเดิม */
+const ntSpan=x=>x.match(/.{1,3}/g).map(y=>`<span class="nt">${y}</span>`).join("");
+const noTel=h=>String(h).replace(/\d+(?:-\d+)+|\d{6,}/g,m=>m.split("-").map(ntSpan).join("-"));
+const safe=s=>noTel(esc(s));
+const txt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${safe(r[k])}</div>`:safe(r[k])});
 /* เบอร์โทร: (1) ขึ้นต้นด้วย 0 และมีตัวเลขตั้งแต่ 9 หลักขึ้นไป (มีขีด - คั่นได้)
               (2) ขึ้นต้นด้วย +66 แล้วแปลงเป็น 0 นำหน้า เช่น +66 81 234 5678 → 0812345678
    นอกนั้นไม่ถือเป็นเบอร์ → ลิงก์ tel: ให้ 3CX โทรออก */
 const TEL_RE=/(\+66[-\s]?\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}(?!\d)|(?<![\d-])0\d*(?:-\d+)*(?!\d))/g;
 function telify(s){
-  return esc(s).replace(TEL_RE,m=>{let d=m.replace(/\D/g,"");
-    if(m.startsWith("+66")) d="0"+d.slice(2);
-    if(d.length<9) return m;
-    return `<a class="tel" href="tel:${d}" title="โทร ${d} ผ่าน 3CX">${m}</a>`;});
+  s=String(s??""); let out="", last=0;
+  for(const mm of s.matchAll(TEL_RE)){
+    const m=mm[0]; let d=m.replace(/\D/g,""); if(m.startsWith("+66")) d="0"+d.slice(2);
+    if(d.length<9) continue;
+    /* เบอร์ที่ผ่านเงื่อนไขปล่อยเป็นข้อความต่อเนื่อง ให้ 3CX Click2Call แปลงเป็นปุ่มโทร (โทรผ่าน 3CX Web Client) */
+    out+=safe(s.slice(last,mm.index))+`<span class="tel" title="กดเพื่อโทรผ่าน 3CX">${esc(m)}</span>`;
+    last=mm.index+m.length;
+  }
+  return out+safe(s.slice(last));
 }
 const telTxt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${telify(r[k])}</div>`:telify(r[k])});
 const dt=k=>({k,cls:"nw",r:r=>fmtD(r[k])});
@@ -279,9 +289,9 @@ function openDrawer(r){
   $("dSub").textContent=[r.brand,r.wo,r.job].filter(Boolean).join(" · ");
   $("dTitle").textContent=r.name||"(ไม่ระบุชื่อสถานี)";
   const rows=[["สถานะครบรอบ",pillDays(r)],["WarrantDate",dCell(r.warrant,r.warrantSrc)],["SerialNumber",snCell(r)],["InstallDate",dCell(r.install,r.installSrc)],
-    ["สถานะดำเนินการ",pillProc(r)],["เลขที่คำขอออนไลน์",esc(r.reqno)],["วันที่ยื่นคำขอ",fmtD(r.reqdate)],["ครบรอบครั้งถัดไป",fmtD(r.next)],
-    ["ID Station",esc(r.code)],["Work order",esc(r.wo)],["Job no.",esc(r.job)],["Open date",fmtD(r.open)],["Finished date",fmtD(r.fin)],["Deadline",fmtD(r.deadline)],["Month",esc(r.month)],
-    ["InformBy",telify(r.inform)],["UserName",telify(r.user)],["Sup.",esc(r.sup)],["Address",telify(r.addr)],["Problem",esc(r.problem)],["Other",esc(r.other)]];
+    ["สถานะดำเนินการ",pillProc(r)],["เลขที่คำขอออนไลน์",safe(r.reqno)],["วันที่ยื่นคำขอ",fmtD(r.reqdate)],["ครบรอบครั้งถัดไป",fmtD(r.next)],
+    ["ID Station",safe(r.code)],["Work order",safe(r.wo)],["Job no.",safe(r.job)],["Open date",fmtD(r.open)],["Finished date",fmtD(r.fin)],["Deadline",fmtD(r.deadline)],["Month",safe(r.month)],
+    ["InformBy",telify(r.inform)],["UserName",telify(r.user)],["Sup.",safe(r.sup)],["Address",telify(r.addr)],["Problem",safe(r.problem)],["Other",safe(r.other)]];
   $("dBody").innerHTML=rows.map(([k,v])=>`<dt>${k}</dt><dd>${v||'<span class="muted">—</span>'}</dd>`).join("");
   const key=r.fuKey, f=(key&&S.fu[key])||{}, box=$("dFu");
   box.hidden=!(DB&&key);

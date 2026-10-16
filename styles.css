@@ -153,9 +153,8 @@ td .sn{font-family:var(--f-mono);font-size:12px;word-break:break-all;min-width:1
 .utable select{border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:6px 8px}
 code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padding:1px 5px;border-radius:4px}
 .kpi .upd{font-size:12px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums;margin-bottom:2px}
-a.tel{color:var(--accent);text-decoration:none;border-bottom:1px dashed currentColor;white-space:nowrap}
-a.tel:hover{border-bottom-style:solid}
-a.tel::before{content:"☎ ";font-size:.9em}
+.tel{white-space:nowrap}
+.tel::before{content:"☎ ";font-size:.9em;color:var(--accent)}
 .whoami{font-size:13.5px;display:inline-flex;align-items:center;gap:4px;padding:0 6px;white-space:nowrap}
 .ubox{display:grid;gap:10px;background:var(--accent-soft);border-radius:10px;padding:14px}
 .ubox h3{margin:0;font-size:14px}
