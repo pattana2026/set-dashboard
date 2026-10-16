@@ -131,13 +131,7 @@ function render(){
   renderSrc(); renderKpis(rows); renderMonth(rows); renderRenewChart(rows); renderBrand(rows);
   renderChips(rows); renderTables(rows);
 }
-function renderSrc(){
-  const s=S.src||{};
-  const who=s.by&&S.names[s.by]?" โดย "+S.names[s.by]:"";
-  const mode=s.mode==="shared"?"ข้อมูลกลาง · ทุกคนเห็นชุดเดียวกัน":s.mode==="local"?"เฉพาะเครื่องนี้":"";
-  const me=S.me?`<span class="who">${S.me.avatarUrl?`<img src="${esc(S.me.avatarUrl)}" alt="">`:""}<b>${esc(S.me.name||"ผู้ใช้")}</b> · ${CAN_UP?"ผู้ดูแล (Upload ได้)":CAN_FU?"บันทึกการติดตามได้":"ดูอย่างเดียว"}</span>`:"";
-  $("srcinfo").innerHTML=me+`<span>แหล่งข้อมูล: <b>${esc(s.name||"")}</b></span>`+(s.at?`<span>${nf(S.all.length)} งาน · อัปเดต ${fmtDT(s.at)}${esc(who)}</span>`:"");
-}
+function renderSrc(){ $("srcinfo").innerHTML=""; }
 function renderKpis(rows){
   const done=rows.filter(r=>r.done).length, pend=rows.length-done;
   const soon=rows.filter(r=>["d30","d60","d90"].includes(r.bucket)).length;
@@ -145,7 +139,7 @@ function renderKpis(rows){
   const d30=rows.filter(r=>r.bucket==="d30").length;
   const pct=rows.length?Math.round(done/rows.length*100):0;
   $("kpis").innerHTML=`
-    <div class="kpi"><span class="l">งานตีตราทั้งหมด</span><span class="v">${nf(rows.length)}</span><span class="s">ตามตัวกรองปัจจุบัน</span></div>
+    <div class="kpi">${S.src&&S.src.at?`<span class="upd">อัปเดต ${fmtDT(S.src.at)}</span>`:""}<span class="l">งานตีตราทั้งหมด</span><span class="v">${nf(rows.length)}</span><span class="s">ตามตัวกรองปัจจุบัน</span></div>
     <div class="kpi ok"><span class="l">ดำเนินการเรียบร้อย</span><span class="v">${nf(done)}</span><span class="s">${pct}% ของงานทั้งหมด</span></div>
     <button class="kpi warn click" type="button" data-proc="pending"><span class="l">รอดำเนินการ</span><span class="v">${nf(pend)}</span><span class="s">ยังไม่ได้ตีตรา / ยื่นคำขอ</span></button>
     <button class="kpi click" type="button" data-b="soon" style="${soon?'':''}"><span class="l">ครบรอบภายใน 90 วัน</span><span class="v" style="color:var(--warn)">${nf(soon)}</span><span class="s">ใน 30 วัน: ${nf(d30)} รายการ</span></button>
@@ -206,6 +200,14 @@ const pillDays=r=>{const b=BUCKETS.find(x=>x.k===r.bucket);
 const dCell=(d,src)=>d?(src==="calc"?`<span class="derived" title="คำนวณจากข้อมูลในไฟล์">${fmtD(d)}</span>`:fmtD(d)):"";
 const snCell=r=>r.serial?`<span class="sn${r.serialSrc==='other'?' derived':''}" ${r.serialSrc==='other'?'title="ดึงจากช่อง Other"':''}>${esc(r.serial)}</span>`:'';
 const txt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${esc(r[k])}</div>`:esc(r[k])});
+/* เบอร์โทรไทย (มือถือ 10 หลัก / บ้าน 9 หลัก) → ลิงก์ tel: ให้ 3CX หรือโปรแกรมโทรศัพท์โทรออกได้ */
+const TEL_RE=/(\+66[-\s]?\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}|(?<!\d)0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}(?!\d))/g;
+function telify(s){
+  return esc(s).replace(TEL_RE,m=>{let d=m.replace(/\D/g,""); if(d.startsWith("66")) d="0"+d.slice(2);
+    if(d.length<9||d.length>10) return m;
+    return `<a class="tel" href="tel:${d}" title="โทร ${d} ผ่าน 3CX">${m}</a>`;});
+}
+const telTxt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${telify(r[k])}</div>`:telify(r[k])});
 const dt=k=>({k,cls:"nw",r:r=>fmtD(r[k])});
 
 function fuCell(r){
@@ -220,7 +222,7 @@ const COLS_RENEW=[
   {label:"ครบรอบครั้งถัดไป",...dt("next")},
   {label:"ID Station",...txt("code","nw")},{label:"Name",...txt("name","wide")},{label:"Brand",...txt("brand","nw")},
   {label:"Other (ผลตีตราครั้งที่แล้ว)",...txt("other","clamp")},
-  {label:"InformBy (ผู้ติดต่อ)",...txt("inform","wide")},{label:"Address",...txt("addr","clamp")},
+  {label:"InformBy (ผู้ติดต่อ)",...telTxt("inform","wide")},{label:"Address",...telTxt("addr","clamp")},
   {label:"เลขที่คำขอออนไลน์",...txt("reqno","nw")},{label:"Work order",...txt("wo","nw")},{label:"Job no.",...txt("job","nw")},{label:"Sup.",...txt("sup","wide")}
 ];
 const COLS_ALL=[
@@ -228,9 +230,9 @@ const COLS_ALL=[
   {label:"Work order",...txt("wo","nw")},{label:"Job no.",...txt("job","nw")},
   {label:"Open date",...dt("open")},{label:"Finished date",...dt("fin")},
   {label:"Brand",...txt("brand","nw")},{label:"ID Station",...txt("code","nw")},{label:"Name",...txt("name","wide")},
-  {label:"InformBy",...txt("inform","wide")},{label:"UserName",...txt("user","wide")},{label:"Sup.",...txt("sup","wide")},
+  {label:"InformBy",...telTxt("inform","wide")},{label:"UserName",...telTxt("user","wide")},{label:"Sup.",...txt("sup","wide")},
   {label:"Problem",...txt("problem","clamp")},{label:"Other",...txt("other","clamp")},
-  {label:"Deadline",...dt("deadline")},{label:"Address",...txt("addr","clamp")},{label:"Month",...txt("month","nw")},
+  {label:"Deadline",...dt("deadline")},{label:"Address",...telTxt("addr","clamp")},{label:"Month",...txt("month","nw")},
   {label:"เลขที่คำขอออนไลน์",...txt("reqno","nw")},{label:"วันที่ยื่นคำขอ",...dt("reqdate")},
   {label:"ครบรอบครั้งถัดไป",...dt("next")},
   {k:"serial",label:"SerialNumber",hl:1,r:snCell},
@@ -276,7 +278,7 @@ function openDrawer(r){
   const rows=[["สถานะครบรอบ",pillDays(r)],["WarrantDate",dCell(r.warrant,r.warrantSrc)],["SerialNumber",snCell(r)],["InstallDate",dCell(r.install,r.installSrc)],
     ["สถานะดำเนินการ",pillProc(r)],["เลขที่คำขอออนไลน์",esc(r.reqno)],["วันที่ยื่นคำขอ",fmtD(r.reqdate)],["ครบรอบครั้งถัดไป",fmtD(r.next)],
     ["ID Station",esc(r.code)],["Work order",esc(r.wo)],["Job no.",esc(r.job)],["Open date",fmtD(r.open)],["Finished date",fmtD(r.fin)],["Deadline",fmtD(r.deadline)],["Month",esc(r.month)],
-    ["InformBy",esc(r.inform)],["UserName",esc(r.user)],["Sup.",esc(r.sup)],["Address",esc(r.addr)],["Problem",esc(r.problem)],["Other",esc(r.other)]];
+    ["InformBy",telify(r.inform)],["UserName",telify(r.user)],["Sup.",esc(r.sup)],["Address",telify(r.addr)],["Problem",esc(r.problem)],["Other",esc(r.other)]];
   $("dBody").innerHTML=rows.map(([k,v])=>`<dt>${k}</dt><dd>${v||'<span class="muted">—</span>'}</dd>`).join("");
   const key=r.fuKey, f=(key&&S.fu[key])||{}, box=$("dFu");
   box.hidden=!(DB&&key);
@@ -479,6 +481,7 @@ async function start(session){
     const me = S.profiles.find(p => p.id === UID);
     ROLE = me ? me.role : "viewer"; CAN_UP = ROLE === "admin"; CAN_FU = ROLE === "admin" || ROLE === "staff";
     S.me = {name: (me && (me.display_name || me.username)) || session.user.email, avatarUrl: ""};
+    renderWho();
     $("uploadBtn").hidden = !CAN_UP; $("usersBtn").hidden = !CAN_UP;
     const st = await loadState();
     await Promise.all([loadJobs(st), loadFU()]);
@@ -514,20 +517,98 @@ $("pwBtn").onclick = () => {
   };
 };
 
+const DOMAIN = () => CFG.USERNAME_DOMAIN || "set.local";
+const loginName = e => { if (!e) return ""; const d = "@" + DOMAIN(); return e.toLowerCase().endsWith(d) ? e.slice(0, -d.length) : e; };
+function genPw(){ const c = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const a = crypto.getRandomValues(new Uint32Array(10)); return Array.from(a, x => c[x % c.length]).join(""); }
+async function copyText(t, el){ try{ await navigator.clipboard.writeText(t); el.textContent = "คัดลอกแล้ว"; }catch(e){ el.textContent = "คัดลอกไม่ได้ กรุณาเลือกข้อความเอง"; } }
+let U_EMAILS = null;
+async function loadUserEmails(){
+  const { data, error } = await DB.rpc("admin_list_users");
+  if (error){ U_EMAILS = null; return false; }
+  U_EMAILS = {}; data.forEach(u => U_EMAILS[u.id] = u); return true;
+}
+function roleSelect(p){ return `<select class="rolesel" data-id="${p.id}" aria-label="ระดับสิทธิ์">${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${p.role === k ? " selected" : ""}>${v}</option>`).join("")}</select>`; }
 function renderUsers(){
-  const rows = S.profiles.map(p => `<tr><td><b>${esc(p.display_name || p.username)}</b><div class="muted">${esc(p.username || "")}</div></td>
-    <td><select class="rolesel" data-id="${p.id}" aria-label="ระดับสิทธิ์ของ ${esc(p.display_name || p.username)}">${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${p.role === k ? " selected" : ""}>${v}</option>`).join("")}</select></td></tr>`).join("");
-  openPanel("จัดการผู้ใช้", `
-    <p class="muted">เปลี่ยนระดับสิทธิ์ได้ทันที การสร้างผู้ใช้ใหม่ทำที่ Supabase → Authentication → Add user (ใช้อีเมลรูปแบบ <code>ชื่อผู้ใช้@${esc(CFG.USERNAME_DOMAIN || "set.local")}</code> และติ๊ก Auto Confirm User) ผู้ใช้ใหม่จะเป็น "ดูอย่างเดียว" จนกว่าจะเปลี่ยนที่นี่</p>
-    <div class="tscroll"><table class="utable"><thead><tr><th>ผู้ใช้</th><th>ระดับสิทธิ์</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <span class="muted" id="uMsg"></span>`);
-  $("p2Body").querySelectorAll(".rolesel").forEach(sel => sel.onchange = async () => {
+  const ready = !!U_EMAILS;
+  const form = ready ? `
+    <div class="ubox">
+      <h3>เพิ่มผู้ใช้ใหม่</h3>
+      <form id="nuForm" class="ugrid">
+        <label>ชื่อผู้ใช้<input id="nuUser" autocomplete="off" placeholder="เช่น somchai หรืออีเมล" required></label>
+        <label>ชื่อที่แสดง<input id="nuName" autocomplete="off" placeholder="เช่น สมชาย ใจดี"></label>
+        <label>รหัสผ่านเริ่มต้น<span class="furow"><input id="nuPass" autocomplete="new-password" minlength="8" required><button class="btn" type="button" id="nuGen">สุ่ม</button></span></label>
+        <label>ระดับสิทธิ์<select id="nuRole">${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${k === "viewer" ? " selected" : ""}>${v}</option>`).join("")}</select></label>
+        <div class="furow"><button class="btn primary" type="submit" id="nuBtn">สร้างผู้ใช้</button></div>
+      </form>
+      <div id="nuMsg" class="muted" role="status"></div>
+    </div>` : `<p class="lgerr">ยังสร้างผู้ใช้จากหน้านี้ไม่ได้ — ผู้ดูแลระบบต้องรันไฟล์ <code>supabase/admin-users.sql</code> ใน Supabase SQL Editor ก่อน (ดู README) ระหว่างนี้เปลี่ยนระดับสิทธิ์ได้ตามปกติ</p>`;
+  const rows = S.profiles.map(p => {
+    const u = U_EMAILS && U_EMAILS[p.id], self = p.id === UID;
+    return `<div class="urow" data-id="${p.id}">
+      <div class="u1"><input class="uname" value="${esc(p.display_name || "")}" aria-label="ชื่อที่แสดง"><div class="muted">เข้าระบบด้วย: <b>${esc(u ? loginName(u.email) : (p.username || ""))}</b>${self ? " · บัญชีของคุณ" : ""}</div></div>
+      <div class="u2">${roleSelect(p)}</div>
+      <div class="u3 muted">เข้าใช้ล่าสุด ${u && u.last_sign_in_at ? fmtDT(u.last_sign_in_at) : "—"}</div>
+      <div class="u4">${ready ? `<button class="btn sm" type="button" data-act="pw">ตั้งรหัสใหม่</button>${self ? "" : `<button class="btn sm danger" type="button" data-act="del">ลบ</button>`}` : ""}</div>
+      <div class="pwrow" hidden><input class="newpw" minlength="8" placeholder="รหัสใหม่ 8 ตัวขึ้นไป" aria-label="รหัสผ่านใหม่"><button class="btn sm" type="button" data-act="pwgen">สุ่ม</button><button class="btn sm primary" type="button" data-act="pwsave">บันทึก</button></div>
+    </div>`;
+  }).join("");
+  openPanel("จัดการผู้ใช้", form + `
+    <h3 style="margin:8px 0 0;font-size:14px">ผู้ใช้ทั้งหมด (${S.profiles.length})</h3>
+    <div class="ulist">${rows}</div>
+    <span class="muted" id="uMsg" role="status"></span>`);
+  const box = $("p2Body"), msg = t => { $("uMsg").textContent = t; };
+  if (ready){
+    $("nuGen").onclick = () => { $("nuPass").value = genPw(); };
+    $("nuForm").onsubmit = async e => {
+      e.preventDefault();
+      const user = $("nuUser").value.trim(), pass = $("nuPass").value, name = $("nuName").value.trim(), role = $("nuRole").value;
+      if (pass.length < 8){ $("nuMsg").textContent = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"; return; }
+      $("nuBtn").disabled = true;
+      const { error } = await DB.rpc("admin_create_user", {p_username: user, p_password: pass, p_display_name: name || null, p_role: role, p_domain: DOMAIN()});
+      $("nuBtn").disabled = false;
+      if (error){ $("nuMsg").textContent = sbMsg(error); return; }
+      const login = user.includes("@") ? user.toLowerCase() : user.toLowerCase();
+      const note = `ลิงก์: ${location.origin + location.pathname}\nชื่อผู้ใช้: ${login}\nรหัสผ่าน: ${pass}`;
+      await loadProfiles(); await loadUserEmails(); renderUsers();
+      $("nuMsg").innerHTML = `<div class="okbox">สร้างผู้ใช้ <b>${esc(login)}</b> แล้ว ส่งข้อมูลนี้ให้ผู้ใช้ทางช่องทางส่วนตัว:<pre id="nuNote">${esc(note)}</pre><button class="btn sm" type="button" id="nuCopy">คัดลอก</button></div>`;
+      $("nuCopy").onclick = () => copyText(note, $("nuCopy"));
+    };
+  }
+  box.querySelectorAll(".rolesel").forEach(sel => sel.onchange = async () => {
     const { error } = await DB.from("profiles").update({role: sel.value}).eq("id", sel.dataset.id);
-    if (error){ $("uMsg").textContent = sbMsg(error); await loadProfiles(); renderUsers(); return; }
-    await loadProfiles(); $("uMsg").textContent = "บันทึกแล้ว";
+    if (error){ msg(sbMsg(error)); await loadProfiles(); renderUsers(); return; }
+    await loadProfiles(); msg("บันทึกระดับสิทธิ์แล้ว");
+  });
+  box.querySelectorAll(".uname").forEach(inp => inp.onchange = async () => {
+    const id = inp.closest(".urow").dataset.id, v = inp.value.trim();
+    if (!v){ msg("ชื่อที่แสดงต้องไม่ว่าง"); return; }
+    const { error } = await DB.from("profiles").update({display_name: v}).eq("id", id);
+    if (error){ msg(sbMsg(error)); return; }
+    await loadProfiles(); render(); msg("บันทึกชื่อแล้ว");
+    if (id === UID){ S.me.name = v; renderWho(); }
+  });
+  box.querySelectorAll("button[data-act]").forEach(b => b.onclick = async () => {
+    const tr = b.closest(".urow"), id = tr.dataset.id, pr = tr.querySelector(".pwrow");
+    if (b.dataset.act === "pw"){ pr.hidden = !pr.hidden; if (!pr.hidden) pr.querySelector(".newpw").focus(); }
+    if (b.dataset.act === "pwgen"){ pr.querySelector(".newpw").value = genPw(); }
+    if (b.dataset.act === "pwsave"){
+      const pw = pr.querySelector(".newpw").value;
+      if (pw.length < 8){ msg("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"); return; }
+      const { error } = await DB.rpc("admin_set_password", {p_user: id, p_password: pw});
+      if (error){ msg(sbMsg(error)); return; }
+      pr.hidden = true; pr.querySelector(".newpw").value = "";
+      const nm = tr.querySelector(".uname").value; msg(`ตั้งรหัสผ่านใหม่ให้ ${nm} แล้ว: ${pw} — ส่งให้ผู้ใช้ทางช่องทางส่วนตัว`);
+    }
+    if (b.dataset.act === "del"){
+      if (b.dataset.armed !== "1"){ b.dataset.armed = "1"; b.textContent = "กดอีกครั้งเพื่อยืนยันลบ"; setTimeout(() => { if (b.isConnected){ b.dataset.armed = ""; b.textContent = "ลบ"; } }, 4000); return; }
+      const { error } = await DB.rpc("admin_delete_user", {p_user: id});
+      if (error){ msg(sbMsg(error)); return; }
+      await loadProfiles(); await loadUserEmails(); renderUsers(); msg("ลบผู้ใช้แล้ว");
+    }
   });
 }
-$("usersBtn").onclick = async () => { try{ await loadProfiles(); }catch(e){} renderUsers(); };
+$("usersBtn").onclick = async () => { try{ await loadProfiles(); await loadUserEmails(); }catch(e){} renderUsers(); };
+function renderWho(){ $("whoami").innerHTML = S.me ? `<span aria-hidden="true">👤</span> <b>${esc(S.me.name)}</b><span class="muted"> · ${ROLES[ROLE] || ""}</span>` : ""; $("whoami").hidden = !S.me; }
 
 /* ---------- boot ---------- */
 (async function boot(){
