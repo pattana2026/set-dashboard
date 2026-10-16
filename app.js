@@ -200,11 +200,14 @@ const pillDays=r=>{const b=BUCKETS.find(x=>x.k===r.bucket);
 const dCell=(d,src)=>d?(src==="calc"?`<span class="derived" title="คำนวณจากข้อมูลในไฟล์">${fmtD(d)}</span>`:fmtD(d)):"";
 const snCell=r=>r.serial?`<span class="sn${r.serialSrc==='other'?' derived':''}" ${r.serialSrc==='other'?'title="ดึงจากช่อง Other"':''}>${esc(r.serial)}</span>`:'';
 const txt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${esc(r[k])}</div>`:esc(r[k])});
-/* เบอร์โทรไทย (มือถือ 10 หลัก / บ้าน 9 หลัก) → ลิงก์ tel: ให้ 3CX หรือโปรแกรมโทรศัพท์โทรออกได้ */
-const TEL_RE=/(\+66[-\s]?\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}|(?<!\d)0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}(?!\d))/g;
+/* เบอร์โทร: (1) ขึ้นต้นด้วย 0 และมีตัวเลขตั้งแต่ 9 หลักขึ้นไป (มีขีด - คั่นได้)
+              (2) ขึ้นต้นด้วย +66 แล้วแปลงเป็น 0 นำหน้า เช่น +66 81 234 5678 → 0812345678
+   นอกนั้นไม่ถือเป็นเบอร์ → ลิงก์ tel: ให้ 3CX โทรออก */
+const TEL_RE=/(\+66[-\s]?\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}(?!\d)|(?<![\d-])0\d*(?:-\d+)*(?!\d))/g;
 function telify(s){
-  return esc(s).replace(TEL_RE,m=>{let d=m.replace(/\D/g,""); if(d.startsWith("66")) d="0"+d.slice(2);
-    if(d.length<9||d.length>10) return m;
+  return esc(s).replace(TEL_RE,m=>{let d=m.replace(/\D/g,"");
+    if(m.startsWith("+66")) d="0"+d.slice(2);
+    if(d.length<9) return m;
     return `<a class="tel" href="tel:${d}" title="โทร ${d} ผ่าน 3CX">${m}</a>`;});
 }
 const telTxt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${telify(r[k])}</div>`:telify(r[k])});
