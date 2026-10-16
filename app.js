@@ -93,6 +93,7 @@ const fmtD=d=>d?String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).p
 const TH_M=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const mKey=d=>d.getFullYear()*100+d.getMonth();
 const mLabel=k=>TH_M[k%100]+String((Math.floor(k/100)+543)%100);
+const mLab2=k=>TH_M[k%100]+"|"+String((Math.floor(k/100)+543)%100);
 const nf=n=>n.toLocaleString("th-TH");
 
 function load(aoa,src){
@@ -147,29 +148,49 @@ function renderKpis(rows){
   $("kpis").querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>{S.bucket=b.dataset.b==="soon"?"active":b.dataset.b;S.renewMonth=null;setTab("renew");render();$("panelRenew").scrollIntoView({behavior:"smooth",block:"start"});});
   $("kpis").querySelector("[data-proc]").onclick=()=>{const p=S.all.find(r=>!r.done&&r.proc);if(p){$("fProc").value=p.proc;syncF();}setTab("all");render();$("panelAll").scrollIntoView({behavior:"smooth",block:"start"});};
 }
+function niceMax(v){ const s=Math.max(1,v/4), p=Math.pow(10,Math.floor(Math.log10(s))); for(const m of [1,2,2.5,3,4,5,6,8,10]){ const st=m*p; if(st>=s && Number.isInteger(st)) return st*4; } return 40*p; }
 function colChart(el,items,opts={}){
-  const max=Math.max(1,...items.map(i=>i.parts.reduce((a,p)=>a+p.v,0)));
-  el.innerHTML=`<div class="cols">${items.map((it,i)=>{const t=it.parts.reduce((a,p)=>a+p.v,0);
-    return `<${opts.click?'button type="button"':'div'} class="col${opts.click?' click':''}${it.sel?' sel':''}" data-i="${i}" title="${esc(it.title||'')}">
-      <span class="val">${t||""}</span><span class="stack" style="height:${t/max*100}%">${it.parts.map(p=>`<span style="height:${t?p.v/t*100:0}%;background:${p.c}"></span>`).join("")}</span></${opts.click?'button':'div'}>`}).join("")}</div>
-    <div class="xlab">${items.map(it=>`<span>${esc(it.label)}</span>`).join("")}</div>`;
-  if(opts.click) el.querySelectorAll(".col").forEach(b=>b.onclick=()=>opts.click(items[+b.dataset.i]));
+  const tot=it=>it.parts.reduce((a,p)=>a+p.v,0);
+  const top=niceMax(Math.max(1,...items.map(tot)));
+  const grid=[0.25,0.5,0.75,1].map(f=>`<div class="gl" style="bottom:${f*100}%"><span>${nf(Math.round(top*f))}</span></div>`).join("");
+  const tag=opts.click?'button':'div', attr=opts.click?' type="button"':'';
+  el.innerHTML=`<div class="cwrap"><div class="cols">${grid}${items.map((it,i)=>{const t=tot(it);
+    const parts=it.parts.filter(p=>p.v>0);
+    return `<${tag}${attr} class="col${opts.click?' click':''}${it.sel?' sel':''}" data-i="${i}" aria-label="${esc(it.title||'')}">
+      <span class="bar" style="height:${t/top*100}%"><span class="val">${t?nf(t):""}</span><span class="stack">${parts.map(p=>`<span style="flex:${p.v} 0 0;background:${p.c}"></span>`).join("")}</span></span></${tag}>`}).join("")}</div>
+    <div class="xlab">${items.map(it=>{const [l1,l2]=String(it.label).split("|");return `<span>${esc(l1)}${l2!==undefined?`<br>${esc(l2)}`:""}</span>`}).join("")}</div></div>`;
+  el.querySelectorAll(".col").forEach(b=>{
+    const it=items[+b.dataset.i];
+    if(opts.click) b.onclick=()=>opts.click(it);
+    b.onmouseenter=()=>showTip(b,it); b.onmouseleave=hideTip; b.onfocus=()=>showTip(b,it); b.onblur=hideTip;
+  });
 }
+function showTip(anchor,it){
+  let tp=$("chartTip"); if(!tp){tp=document.createElement("div");tp.id="chartTip";tp.className="ctip";document.body.appendChild(tp);}
+  const rows=(it.tip||[]).map(([c,l,v])=>`<div><i style="background:${c}"></i>${esc(l)}<b>${nf(v)}</b></div>`).join("");
+  tp.innerHTML=`<strong>${esc(it.tipTitle||it.label.replace("|"," "))}</strong>${rows}`;
+  tp.hidden=false;
+  const r=anchor.getBoundingClientRect(), w=tp.offsetWidth, h=tp.offsetHeight;
+  let x=r.left+r.width/2-w/2; x=Math.max(8,Math.min(x,innerWidth-w-8));
+  let y=r.top-h-8; if(y<8) y=r.bottom+8;
+  tp.style.left=x+"px"; tp.style.top=y+"px";
+}
+function hideTip(){ const tp=$("chartTip"); if(tp) tp.hidden=true; }
 function renderMonth(rows){
   const m={}; rows.forEach(r=>{if(!r.open)return;const k=mKey(r.open);m[k]=m[k]||{d:0,p:0};r.done?m[k].d++:m[k].p++;});
-  const ks=Object.keys(m).map(Number).sort((a,b)=>a-b).slice(-14);
+  const ks=Object.keys(m).map(Number).sort((a,b)=>a-b).slice(-12);
   if(!ks.length){$("chMonth").innerHTML='<div class="empty">ไม่มีข้อมูล</div>';return;}
-  colChart($("chMonth"),ks.map(k=>({label:mLabel(k),title:`${mLabel(k)} · เรียบร้อย ${m[k].d} · รอ ${m[k].p}`,parts:[{v:m[k].d,c:"var(--accent)"},{v:m[k].p,c:"var(--pending)"}]})));
+  colChart($("chMonth"),ks.map(k=>({label:mLab2(k),tipTitle:mLabel(k),title:`${mLabel(k)} · เรียบร้อย ${m[k].d} · รอ ${m[k].p}`,tip:[["var(--accent)","ดำเนินการเรียบร้อย",m[k].d],["var(--pending)","รอดำเนินการ",m[k].p]],parts:[{v:m[k].d,c:"var(--accent)"},{v:m[k].p,c:"var(--pending)"}]})));
 }
 function renderRenewChart(rows){
   const start=new Date(TODAY.getFullYear(),TODAY.getMonth(),1);
   const items=[]; const over=rows.filter(r=>r.bucket==="overdue").length;
-  items.push({label:"เลยกำหนด",key:"overdue",title:`เลยกำหนดแล้ว ${over} รายการ`,parts:[{v:over,c:"var(--bad)"}],sel:S.renewMonth==="overdue"});
+  items.push({label:"ล่าช้า",tipTitle:"เลยกำหนดแล้ว",key:"overdue",title:`เลยกำหนดแล้ว ${over} รายการ`,tip:[["var(--bad)","เลยกำหนด",over]],parts:[{v:over,c:"var(--bad)"}],sel:S.renewMonth==="overdue"});
   for(let i=0;i<12;i++){
     const d=new Date(start.getFullYear(),start.getMonth()+i,1), k=mKey(d);
     const inM=rows.filter(r=>r.due&&r.days>=0&&mKey(r.due)===k);
     const c=b=>inM.filter(r=>r.bucket===b).length;
-    items.push({label:mLabel(k),key:k,title:`${mLabel(k)} · ${inM.length} รายการ`,sel:S.renewMonth===k,
+    items.push({label:mLab2(k),tipTitle:"ครบรอบ "+mLabel(k),key:k,title:`${mLabel(k)} · ${inM.length} รายการ`,sel:S.renewMonth===k,tip:[["var(--warn)","ภายใน 30 วัน",c("d30")],["var(--soon)","31–90 วัน",c("d60")+c("d90")],["var(--ok)","มากกว่า 90 วัน",c("later")]],
       parts:[{v:c("d30"),c:"var(--warn)"},{v:c("d60")+c("d90"),c:"var(--soon)"},{v:c("later"),c:"var(--ok)"}]});
   }
   colChart($("chRenew"),items,{click:it=>{S.renewMonth=S.renewMonth===it.key?null:it.key;S.bucket="all";S.page.renew=0;setTab("renew");render();}});
