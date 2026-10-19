@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.12.0", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.12.1", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -53,6 +53,8 @@ const BUCKETS = [
 
 /* ===== WarrantDate / InstallDate จากข้อความในช่อง Other ===== */
 const TH_MON={"มกราคม":1,"ม.ค.":1,"มค":1,"กุมภาพันธ์":2,"ก.พ.":2,"กพ":2,"มีนาคม":3,"มี.ค.":3,"มีค":3,"เมษายน":4,"เม.ย.":4,"เมย":4,"พฤษภาคม":5,"พ.ค.":5,"พค":5,"มิถุนายน":6,"มิ.ย.":6,"มิย":6,"กรกฎาคม":7,"ก.ค.":7,"กค":7,"สิงหาคม":8,"ส.ค.":8,"สค":8,"กันยายน":9,"ก.ย.":9,"กย":9,"ตุลาคม":10,"ต.ค.":10,"ตค":10,"พฤศจิกายน":11,"พ.ย.":11,"พย":11,"ธันวาคม":12,"ธ.ค.":12,"ธค":12};
+/* รูปย่อที่ไม่มีจุดท้าย เช่น ธ.ค68 */
+Object.keys(TH_MON).filter(k=>/\.$/.test(k)).forEach(k=>{TH_MON[k.slice(0,-1)]=TH_MON[k];});
 const TH_MON_RE=Object.keys(TH_MON).sort((a,b)=>b.length-a.length).map(k=>k.replace(/\./g,"\\.")).join("|");
 function mkYmd(d,m,y){
   if(y<100) y = y>=50 ? 2500+y : 2000+y;
@@ -60,17 +62,26 @@ function mkYmd(d,m,y){
   if(y<2015||y>2040||m<1||m>12||d<1||d>31) return null;
   const t=new Date(y,m-1,d); return t.getMonth()===m-1?t:null;
 }
-function findDates(s){
+function findDates(s,noCompact){
   const out=[]; let m;
   const reTh=new RegExp(`(?<!\\d)(\\d{1,2})[\\s\\/\\-.]*(${TH_MON_RE})[\\s\\/\\-.]*(\\d{2,4})(?!\\d)`,"g");
   while((m=reTh.exec(s))){ const d=mkYmd(+m[1],TH_MON[m[2]],+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
+  /* ปี 4 หลักที่มีตัวเลขอื่นต่อท้ายติดกัน เช่น 5สิงหาคม256914หัวจ่าย */
+  const reThY=new RegExp(`(?<!\\d)(\\d{1,2})[\\s\\/\\-.]*(${TH_MON_RE})[\\s\\/\\-.]*((?:25[5-8]|20[2-3])\\d)(?=\\d)`,"g");
+  while((m=reThY.exec(s))){ const d=mkYmd(+m[1],TH_MON[m[2]],+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
+  /* เดือนภาษาอังกฤษ เช่น 06-Feb-26, 25 Nov 2026 */
+  const reEn=/(?<!\d)(\d{1,2})[\s\/\-.]*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s\/\-.,]*(\d{2,4})(?!\d)/gi;
+  while((m=reEn.exec(s))){ const d=mkYmd(+m[1],EN_M.findIndex(x=>x.toLowerCase()===m[2].toLowerCase())+1,+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
+  /* ปี 4 หลัก (25xx / 20xx) ที่มีตัวเลขอื่นต่อท้ายติดกัน เช่น 13.02.256936มือจ่าย */
+  const reSepY=/(?<!\d)(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*((?:25[5-8]|20[2-3])\d)(?=\d)/g;
+  while((m=reSepY.exec(s))){ let a=+m[1], b=+m[2]; if(b>12&&a<=12){const t=a;a=b;b=t;} const d=mkYmd(a,b,+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
   const reSep=/(?<!\d)(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{2,4})(?!\d)/g;
   while((m=reSep.exec(s))){ let a=+m[1], b=+m[2]; if(b>12&&a<=12){const t=a;a=b;b=t;} const d=mkYmd(a,b,+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
   const reSp=/(?<!\d)(\d{1,2})\s{1,3}(\d{1,2})\s{1,3}(\d{2}|\d{4})(?!\d)/g;
   while((m=reSp.exec(s))){ const d=mkYmd(+m[1],+m[2],+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
   /* ตัวเลขติดกันไม่มีตัวคั่น เช่น 12032570, 190370, 8112569, 11069 → ลองทุกแบบที่เป็นวันที่ได้ */
   const reCmp=/(?<!\d)(\d{4,8})(?!\d)/g;
-  while((m=reCmp.exec(s))){
+  while(!noCompact&&(m=reCmp.exec(s))){
     const t=m[1], ds=[];
     for(const yl of [4,2]){ const rest=t.length-yl; if(rest<2||rest>4) continue; const y=+t.slice(rest);
       if(yl===4 && (y<2560||y>2580)) continue; if(yl===2 && (y<60||y>80)) continue;
@@ -80,6 +91,14 @@ function findDates(s){
     if(ds.length) out.push({i:m.index,ds});
   }
   return out.sort((a,b)=>a.i-b.i);
+}
+/* วันที่อายุรับรอง: วันที่ในช่อง Problem — ถ้ามีหลายวันที่ใช้วันที่ก่อนสุด
+   (ไม่อ่านตัวเลขติดกันแบบไม่มีตัวคั่น เพื่อไม่ให้ไปจับเลขทะเบียน/จำนวนหัวจ่าย) · ต้องอยู่ในช่วง Open date −3 ปี ถึง +2 ปี */
+function extractProblemDate(text, ref){
+  if(!text) return null; const s=String(text).replace(/_x000D_/g," ");
+  const lo=ref?+ref-3*366*86400000:-Infinity, hi=ref?+ref+2*366*86400000:Infinity;
+  const ds=findDates(s,true).flatMap(x=>x.ds).filter(d=>+d>lo&&+d<hi);
+  return ds.length?ds.reduce((a,b)=>a<b?a:b):null;
 }
 function extractExpiry(text, ref){
   if(!text) return null; const s=String(text).replace(/_x000D_/g," ");
@@ -134,6 +153,7 @@ function parseAOA(aoa){
     if(o.installF){ o.install=o.installF; o.installSrc="file"; }
     else { o.install=o.warrant?minusYear(o.warrant):null; o.installSrc=o.install?"minus1y":""; }
     /* วันอ้างอิงครบรอบ (KPI / กราฟ / แท็บต่อสัญญา): WarrantDate ก่อน ถ้าไม่มีใช้ "ครบรอบครั้งถัดไป" */
+    o.certDate=extractProblemDate(o.problem, o.open||o.fin);
     o.due=o.warrant||o.next; o.dueSrc=o.warrant?"warrant":(o.next?"next":"");
     o.days=o.due?Math.round((o.due-TODAY)/DAY):null;
     o.bucket=bucketOf(o.days);
@@ -417,7 +437,7 @@ function renderTables(rows){
 
 /* ===== รายงานต่ออายุรับรอง (v1.12.0): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 4 คอลัมน์ Job | Finish date | วันที่อายุรับรอง | วันที่ตรวจรับรองครั้งถัดไป =====
    ตีตรา 1 ปีต่อครั้ง: Job ที่ปิดงาน (Finish date) ปีนี้ → Job + Finish date อยู่ในปีนี้
-   วันที่อายุรับรอง = Warranty date ของ Job (บรรทัดเดียวกับ Job) · วันที่ตรวจรับรองครั้งถัดไป = Warranty date ที่ครบกำหนดในปีนั้น (ปกติมาจาก Job ปีก่อน)
+   วันที่อายุรับรอง = วันที่ก่อนสุดในช่อง Problem (บรรทัดเดียวกับ Job) · วันที่ตรวจรับรองครั้งถัดไป = วันหมดอายุรอบถัดไปจากช่อง Other ที่ครบกำหนดในปีนั้น (ปกติมาจาก Job ปีก่อน)
    งานที่ยังไม่ปิดใช้ปีที่เปิดงาน · แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
 /* ติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
 const REPORT_KEYWORDS=["ติดตั้งใหม่","ชั้นแรกทั้งสถานี","หมดอายุ"];
@@ -460,8 +480,8 @@ function stSealPart(it){
   return it.d?`<span class="yev done" title="Finish date ${fmtD(it.d)}">${fmtS(it.d)}</span>`:`<span class="muted">—</span>`;
 }
 function stAgePart(it){
-  const r=it.r; if(it.kind==="pend"||!r.due) return `<span class="muted">—</span>`;
-  return `<span class="yev plain" title="Warranty date ของ Job ${esc(r.job||r.wo)} · ${fmtD(r.due)}">${fmtS(r.due)}</span>`;
+  const r=it.r; if(!r.certDate) return `<span class="muted">—</span>`;
+  return `<span class="yev plain" title="วันที่อายุรับรองจากช่อง Problem (Job ${esc(r.job||r.wo)}) · ${fmtD(r.certDate)}">${fmtS(r.certDate)}</span>`;
 }
 function stWarrPart(it){
   const r=it.r;
@@ -511,7 +531,7 @@ function exportStations(){
   const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs,warr})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
-      jobs.map(it=>it.kind==="pend"||!it.r.due?"":fmtD(it.r.due)).join("\n"),
+      jobs.map(it=>fmtD(it.r.certDate)).join("\n"),
       warr.map(it=>`${fmtD(it.d)} (${it.r.job||it.r.wo||""})${it.by?" ต่ออายุแล้ว":""}`).join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%4===3?26:14}));
