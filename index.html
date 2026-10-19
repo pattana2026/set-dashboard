@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<!-- SETS Seal Tracker v1.5.1 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
+<!-- SETS Seal Tracker v1.9.3 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
 <title>SETS Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=1.5.1">
+<link rel="stylesheet" href="styles.css?v=1.9.3">
 </head>
 <body>
 <div class="wrap">
@@ -75,6 +75,7 @@
   <section>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" id="tabRenew" aria-selected="true" type="button">ติดตามต่อสัญญารอบใหม่<span class="c" id="cRenew"></span></button>
+      <button class="tab" role="tab" id="tabSt" aria-selected="false" type="button">รายงานต่ออายุรับรอง<span class="c" id="cSt"></span></button>
       <button class="tab" role="tab" id="tabAll" aria-selected="false" type="button">งานตีตราทั้งหมด<span class="c" id="cAll"></span></button>
     </div>
   </section>
@@ -87,6 +88,10 @@
       <div class="furow"><span class="furow" id="bulkAsg"></span><button class="btn" id="expRenew" type="button">⬇ Export Excel</button></div>
     </div>
     <div class="tablebox"><div class="tscroll"><table id="tRenew"></table></div><div class="pager" id="pRenew"></div></div>
+  </section>
+  <section class="panel" id="panelSt" hidden>
+    <div class="furbar"><span class="muted" style="font-size:12.5px" id="stInfo"></span><button class="btn" id="expSt" type="button">⬇ Export Excel</button></div>
+    <div class="tablebox"><div class="tscroll"><table id="tSt" class="sttable"></table></div><div class="pager" id="pSt"></div></div>
   </section>
   <section class="panel" id="panelAll" hidden>
     <div class="furbar"><span class="muted" style="font-size:12.5px">Export ตามตัวกรองและการเรียงที่แสดงอยู่</span><button class="btn" id="expAll" type="button">⬇ Export Excel</button></div>
@@ -122,7 +127,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.5.1"></script>
-<script src="app.js?v=1.5.1"></script>
+<script src="config.js?v=1.9.3"></script>
+<script src="app.js?v=1.9.3"></script>
 </body>
 </html>

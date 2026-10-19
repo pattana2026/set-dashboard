@@ -52,7 +52,7 @@ button,select,input{font:inherit;color:inherit}
 .filters select{border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:7px 8px;max-width:220px;min-width:0;flex:0 1 auto}
 .filters .clear{border:none;background:none;color:var(--accent);cursor:pointer;padding:6px}
 
-.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;display:grid;gap:4px;text-align:left;cursor:default}
 .kpi .l{font-size:16px;font-weight:600;color:var(--muted)}
 .kpi .v{font-family:var(--f-mono);font-size:46px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
@@ -209,3 +209,38 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .fugrid input,.fugrid select{border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:6px 8px;font:inherit;color:var(--fg);min-width:0}
 @media (max-width:1100px){.fkrow{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){.fkrow{grid-template-columns:repeat(2,minmax(0,1fr))}.fugrid{grid-template-columns:1fr}}
+.kpi.yr{position:relative;border-top-width:4px}
+.kpi.yr .eye{font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:none;border-radius:999px;padding:1px 9px;justify-self:start;margin-bottom:4px}
+.kpi.past{border-top-color:var(--ok)}.kpi.past .eye{background:var(--ok-soft);color:var(--ok)}.kpi.past .v{color:var(--ok)}
+.kpi.now{border-top-color:var(--warn)}.kpi.now .eye{background:var(--warn-soft);color:var(--warn)}.kpi.now .v{color:var(--warn)}
+.kpi.future{border-top-color:var(--accent)}.kpi.future .eye{background:var(--accent-soft);color:var(--accent)}.kpi.future .v{color:var(--accent)}
+.kpi.yr.on{box-shadow:0 0 0 2px var(--fg)}
+.ycol{min-width:170px}
+.yev{font-size:12px;line-height:1.45;white-space:nowrap}
+.yev.done,.yev.renewed{color:var(--ok)}.yev.late{color:var(--bad);font-weight:600}.yev.soon{color:var(--warn);font-weight:600}.yev.plan{color:var(--fg)}.yev.next{color:var(--muted)}
+
+/* v1.9.0 รายสถานี: แต่ละปี = Job | วันที่ */
+.sttable th,.sttable td{vertical-align:top;padding:7px 8px}
+.sttable thead tr:nth-child(2) th{top:var(--sth1,34px)}
+.sttable thead tr:nth-child(3) th{top:var(--sth2,68px)}
+.sttable th.rpt{text-align:center;font-size:14px;font-weight:700;cursor:default}
+.sttable th.yh{text-align:center;font-size:14px;cursor:default;min-width:190px}
+.sttable th.yh small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.sttable th.sj{cursor:default;font-size:11.5px}
+.sttable th.y0{background:color-mix(in srgb,var(--ok) 14%,var(--surface-2))}
+.sttable th.y1{background:color-mix(in srgb,var(--warn) 14%,var(--surface-2))}
+.sttable th.y2{background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
+.sttable .ysep{border-left:3px solid var(--line)}
+.sttable td.num{text-align:center;font-weight:700}
+.sttable td.stname{min-width:150px;max-width:210px}
+.sttable td.stinf{min-width:140px;max-width:190px;font-size:12px;word-break:break-word}
+.sttable td.sjc,.sttable td.sdc{white-space:nowrap;font-size:12px}
+.sent{height:24px;line-height:20px;padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer;overflow:hidden}
+.sent+.sent{border-top:1px dashed var(--line)}
+.sent.hov{background:var(--surface-2)}
+.sjc .sent b{font-size:12.5px}
+.yev.pend{color:var(--warn)}
+.sfu{display:inline;margin-left:4px}.sfu .pill{font-size:10px;padding:0 5px}
+.stlist{display:grid;gap:8px}
+.stitem{text-align:left;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit;color:var(--fg)}
+.kwnote{color:var(--muted);font-size:12px}
