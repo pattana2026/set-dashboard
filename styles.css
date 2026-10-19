@@ -232,8 +232,8 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .sttable th.y2{background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
 .sttable .ysep{border-left:3px solid var(--line)}
 .sttable td.num{text-align:center;font-weight:700}
-.sttable td.stname{min-width:130px;max-width:170px}
-.sttable td.stinf{min-width:115px;max-width:145px;font-size:12px;word-break:break-word}
+.sttable td.stname{min-width:110px;max-width:140px}
+.sttable td.stinf{min-width:100px;max-width:120px;font-size:12px;word-break:break-word}
 .sttable td.sjc,.sttable td.sdc{white-space:nowrap;font-size:12px}
 .sent{height:24px;line-height:20px;white-space:nowrap;padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer;overflow:hidden}
 .sent+.sent{border-top:1px dashed var(--line)}
@@ -245,5 +245,8 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .stitem{text-align:left;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit;color:var(--fg)}
 .kwnote{color:var(--muted);font-size:12px}
 .sttable .vsep{border-left:1px solid var(--line)}
-.sttable td.sdc{min-width:84px}
+.sttable td.sdc{min-width:0}
+.yev.plain{color:var(--fg)}
 .sttable th.sj{white-space:normal;line-height:1.25}
+.sttable th.sj{font-size:11px;min-width:54px}
+.sttable th.sj:first-child,.sttable th.sj.ysep{min-width:0}
