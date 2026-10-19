@@ -1,4 +1,4 @@
-# SET Seal Tracker
+# SETS Seal Tracker
 
 Dashboard ติดตามสถานะงานตีตราและการต่อสัญญารอบใหม่ของ SET
 

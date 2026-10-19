@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.4.0", APP_RELEASED = "16/10/2026";
+const APP_VERSION = "1.4.1", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -576,7 +576,7 @@ function exportXlsx(which){
   const aoa = [cols.map(c => c[0]), ...rows.map(r => cols.map(c => { const v = c[1](r); return v == null ? "" : String(v); }))];
   const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = cols.map(c => ({wch: c[2] || 14})); ws["!autofilter"] = {ref: XLSX.utils.encode_range({s: {r: 0, c: 0}, e: {r: aoa.length - 1, c: cols.length - 1}})};
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, name);
-  XLSX.writeFile(wb, `SET-${name}-${isoD(new Date())}.xlsx`);
+  XLSX.writeFile(wb, `SETS-${name}-${isoD(new Date())}.xlsx`);
   banner(`Export ${nf(rows.length)} รายการแล้ว`, "ok");
 }
 $("expRenew").onclick = () => exportXlsx("renew"); $("expAll").onclick = () => exportXlsx("all");
@@ -744,7 +744,7 @@ $("usersBtn").onclick = async () => { try{ await loadProfiles(); await loadUserE
 function renderWho(){ $("whoami").innerHTML = S.me ? `<span aria-hidden="true">👤</span> <b>${esc(S.me.name)}</b><span class="muted"> · ${ROLES[ROLE] || ""}</span>` : ""; $("whoami").hidden = !S.me; }
 
 /* ---------- boot ---------- */
-(function showVersion(){ const t=`SET Seal Tracker v${APP_VERSION} · ${APP_RELEASED}`; ["verLogin","verFoot"].forEach(id=>{const e=document.getElementById(id); if(e) e.textContent=t;}); })();
+(function showVersion(){ const t=`SETS Seal Tracker v${APP_VERSION} · ${APP_RELEASED}`; ["verLogin","verFoot"].forEach(id=>{const e=document.getElementById(id); if(e) e.textContent=t;}); })();
 (async function boot(){
   let t = "renew"; try{ t = localStorage.getItem("set-seal-tab") || "renew"; }catch(e){} setTab(t === "all" ? "all" : "renew");
   wrapEl.classList.add("locked");
