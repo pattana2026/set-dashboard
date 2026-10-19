@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.5.0", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.5.1", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -125,7 +125,8 @@ function parseAOA(aoa){
     else { o.warrant=extractExpiry(o.other, o.open||o.fin); o.warrantSrc=o.warrant?"other":""; }
     if(o.installF){ o.install=o.installF; o.installSrc="file"; }
     else { o.install=o.warrant?minusYear(o.warrant):null; o.installSrc=o.install?"minus1y":""; }
-    o.due=o.next||o.warrantF;
+    /* วันอ้างอิงครบรอบ (KPI / กราฟ / แท็บต่อสัญญา): WarrantDate ก่อน ถ้าไม่มีใช้ "ครบรอบครั้งถัดไป" */
+    o.due=o.warrant||o.next; o.dueSrc=o.warrant?"warrant":(o.next?"next":"");
     o.days=o.due?Math.round((o.due-TODAY)/DAY):null;
     o.bucket=bucketOf(o.days);
     {const k=String(o.job||o.wo||"").trim().replace(/[^A-Za-z0-9_\-.~:@+]/g,"_").slice(0,190); o.fuKey=(k&&k!=="."&&k!=="..")?k:null;}
@@ -139,7 +140,7 @@ function parseAOA(aoa){
 /* ---------- state ---------- */
 const S={all:[],src:null,tab:"renew",bucket:"active",renewMonth:null,fu:{},names:{},fFu:"any",fAsg:"any",profiles:[],renRows:[],allRows:[],fuV2:false,loadedV:null,
   f:{q:"",brand:"",proc:"",sup:"",user:"",month:""},
-  sort:{renew:{k:"next",d:1},all:{k:"open",d:-1}}, page:{renew:0,all:0}};
+  sort:{renew:{k:"due",d:1},all:{k:"open",d:-1}}, page:{renew:0,all:0}};
 const PAGE=50;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -314,10 +315,13 @@ function fuCell(r){
   if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม">${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
   const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}">${o.label}</span>${meta}`;
 }
+function dueCell(r){ if(!r.due) return "";
+  if(r.dueSrc==="next") return `<span class="derived" title="ไม่พบวันหมดอายุในช่อง Other — ใช้ครบรอบครั้งถัดไปแทน">${fmtD(r.due)}</span>`;
+  return `<span title="${r.warrantSrc==="file"?"WarrantDate จากไฟล์":"วันหมดอายุรอบถัดไปจากช่อง Other"}">${fmtD(r.due)}</span>`; }
 const COLS_RENEW=[
   {k:"days",label:"สถานะครบรอบ",cls:"nw",r:pillDays},
   {k:"fuS",label:"การติดตาม",cls:"nw",hl:1,r:fuCell},
-  {label:"ครบรอบครั้งถัดไป",...dt("next")},
+  {k:"due",label:"WarrantDate (วันหมดอายุ)",cls:"nw",hl:1,r:dueCell},
   {label:"ID Station",...txt("code","nw")},{label:"Name",...txt("name","wide")},{label:"Brand",...txt("brand","nw")},
   {label:"Other (ผลตีตราครั้งที่แล้ว)",...txt("other","clamp")},
   {label:"InformBy (ผู้ติดต่อ)",...telTxt("inform","wide")},{label:"Address",...telTxt("addr","clamp")},
@@ -617,7 +621,7 @@ function renderBulk(rows){
 const daysText = r => r.days === null ? "ไม่มีวันครบรอบ" : r.days < 0 ? `เลยมา ${-r.days} วัน` : r.days === 0 ? "ครบวันนี้" : `อีก ${r.days} วัน`;
 const fuLabel = r => (FU.find(o => o.k === (fuOf(r).s || "")) || FU[0]).label;
 const EXP_FU = [["การติดตาม", fuLabel, 16], ["นัดติดตามครั้งถัดไป", r => fuOf(r).next ? fmtD(toDate(fuOf(r).next)) : "", 14], ["ผู้รับผิดชอบ", r => asgName(fuOf(r).asg), 16], ["บันทึกการติดตาม", r => fuOf(r).note || "", 40], ["บันทึกล่าสุดโดย", r => fuOf(r).by ? (S.names[fuOf(r).by] || "") : "", 16], ["บันทึกล่าสุดเมื่อ", r => fuOf(r).at ? fmtDT(fuOf(r).at) : "", 17]];
-const EXP_RENEW = [["สถานะครบรอบ", daysText, 16], ["ครบรอบครั้งถัดไป", r => fmtD(r.next), 14], ...EXP_FU,
+const EXP_RENEW = [["สถานะครบรอบ", daysText, 16], ["WarrantDate (วันหมดอายุ)", r => fmtD(r.due), 14], ["ที่มาของวันหมดอายุ", r => r.dueSrc === "next" ? "ครบรอบครั้งถัดไป (ไม่พบใน Other)" : r.warrantSrc === "file" ? "ไฟล์" : r.due ? "ช่อง Other" : "", 22], ...EXP_FU,
   ["ID Station", r => r.code, 11], ["Name", r => r.name, 36], ["Brand", r => r.brand, 9], ["Other", r => r.other, 50], ["InformBy", r => r.inform, 32], ["Address", r => r.addr, 50], ["เลขที่คำขอออนไลน์", r => r.reqno, 18], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Sup.", r => r.sup, 26]];
 const EXP_ALL = [["สถานะดำเนินการ", r => r.proc, 16], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Open date", r => fmtD(r.open), 11], ["Finished date", r => fmtD(r.fin), 11], ["Brand", r => r.brand, 9], ["ID Station", r => r.code, 11], ["Name", r => r.name, 36], ["InformBy", r => r.inform, 32], ["UserName", r => r.user, 30], ["Sup.", r => r.sup, 26], ["Problem", r => r.problem, 40], ["Other", r => r.other, 50], ["Deadline", r => fmtD(r.deadline), 11], ["Address", r => r.addr, 50], ["Month", r => r.month, 9], ["เลขที่คำขอออนไลน์", r => r.reqno, 18], ["วันที่ยื่นคำขอ", r => fmtD(r.reqdate), 12], ["ครบรอบครั้งถัดไป", r => fmtD(r.next), 14], ["SerialNumber", r => r.serial, 20], ["InstallDate", r => fmtD(r.install), 11], ["WarrantDate", r => fmtD(r.warrant), 11], ["สถานะครบรอบ", daysText, 16], ["การติดตาม", fuLabel, 16]];
 function exportXlsx(which){
