@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.4.1", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.5.0", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -50,6 +50,54 @@ const BUCKETS = [
   {k:"none",label:"ยังไม่มีวันครบรอบ",color:"var(--none)"}
 ];
 
+/* ===== WarrantDate / InstallDate จากข้อความในช่อง Other ===== */
+const TH_MON={"มกราคม":1,"ม.ค.":1,"มค":1,"กุมภาพันธ์":2,"ก.พ.":2,"กพ":2,"มีนาคม":3,"มี.ค.":3,"มีค":3,"เมษายน":4,"เม.ย.":4,"เมย":4,"พฤษภาคม":5,"พ.ค.":5,"พค":5,"มิถุนายน":6,"มิ.ย.":6,"มิย":6,"กรกฎาคม":7,"ก.ค.":7,"กค":7,"สิงหาคม":8,"ส.ค.":8,"สค":8,"กันยายน":9,"ก.ย.":9,"กย":9,"ตุลาคม":10,"ต.ค.":10,"ตค":10,"พฤศจิกายน":11,"พ.ย.":11,"พย":11,"ธันวาคม":12,"ธ.ค.":12,"ธค":12};
+const TH_MON_RE=Object.keys(TH_MON).sort((a,b)=>b.length-a.length).map(k=>k.replace(/\./g,"\\.")).join("|");
+function mkYmd(d,m,y){
+  if(y<100) y = y>=50 ? 2500+y : 2000+y;
+  if(y>2400) y-=543;
+  if(y<2015||y>2040||m<1||m>12||d<1||d>31) return null;
+  const t=new Date(y,m-1,d); return t.getMonth()===m-1?t:null;
+}
+function findDates(s){
+  const out=[]; let m;
+  const reTh=new RegExp(`(?<!\\d)(\\d{1,2})[\\s\\/\\-.]*(${TH_MON_RE})[\\s\\/\\-.]*(\\d{2,4})(?!\\d)`,"g");
+  while((m=reTh.exec(s))){ const d=mkYmd(+m[1],TH_MON[m[2]],+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
+  const reSep=/(?<!\d)(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{2,4})(?!\d)/g;
+  while((m=reSep.exec(s))){ let a=+m[1], b=+m[2]; if(b>12&&a<=12){const t=a;a=b;b=t;} const d=mkYmd(a,b,+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
+  const reSp=/(?<!\d)(\d{1,2})\s{1,3}(\d{1,2})\s{1,3}(\d{2}|\d{4})(?!\d)/g;
+  while((m=reSp.exec(s))){ const d=mkYmd(+m[1],+m[2],+m[3]); if(d) out.push({i:m.index,ds:[d]}); }
+  /* ตัวเลขติดกันไม่มีตัวคั่น เช่น 12032570, 190370, 8112569, 11069 → ลองทุกแบบที่เป็นวันที่ได้ */
+  const reCmp=/(?<!\d)(\d{4,8})(?!\d)/g;
+  while((m=reCmp.exec(s))){
+    const t=m[1], ds=[];
+    for(const yl of [4,2]){ const rest=t.length-yl; if(rest<2||rest>4) continue; const y=+t.slice(rest);
+      if(yl===4 && (y<2560||y>2580)) continue; if(yl===2 && (y<60||y>80)) continue;
+      for(let dl=1;dl<=2;dl++){ const ml=rest-dl; if(ml<1||ml>2) continue;
+        const dd=t.slice(0,dl), mm=t.slice(dl,rest); if(mm.length===2&&mm[0]==="0"&&false) continue;
+        const d=mkYmd(+dd,+mm,y); if(d) ds.push(d); } }
+    if(ds.length) out.push({i:m.index,ds});
+  }
+  return out.sort((a,b)=>a.i-b.i);
+}
+function extractExpiry(text, ref){
+  if(!text) return null; const s=String(text).replace(/_x000D_/g," ");
+  const kw=/(หมดอายุ|สิ้นอายุ|ครบอายุ|สิ้นคำรับรอง)/g; let m; const cands=[];
+  const lo=ref?+ref+150*86400000:0, hi=ref?+ref+2*366*86400000:Infinity, target=ref?+ref+365*86400000:null;
+  while((m=kw.exec(s))){
+    const win=s.slice(m.index, m.index+70);
+    const next=/ถัดไป|ต่อไป|รอบถัด|ครั้งถัด|รอบหน้า|ครั้งหน้า/.test(win.slice(0,40));
+    for(const x of findDates(win)) for(const d of x.ds){
+      if(+d<=lo||+d>=hi) continue;
+      cands.push({d, score:(next?2:0)+(x.i<45?1:0), pos:m.index+x.i, gap:target?Math.abs(d-target):0});
+    }
+  }
+  if(!cands.length) return null;
+  cands.sort((a,b)=>b.score-a.score||a.pos-b.pos||a.gap-b.gap);
+  return cands[0].d;
+}
+function minusYear(d){ const t=new Date(d.getFullYear()-1,d.getMonth(),d.getDate()); if(t.getMonth()!==d.getMonth()) return new Date(d.getFullYear()-1,d.getMonth()+1,0); return t; }
+
 /* Parse an array-of-arrays (header row + data rows) into job records. Same path for embedded data, uploads and a future SMS API. */
 function parseAOA(aoa){
   let h=-1;
@@ -71,8 +119,12 @@ function parseAOA(aoa){
     }
     if(!o.wo&&!o.job&&!o.name) continue;
     o.serial=o.serialF; o.serialSrc=o.serialF?"file":"";
-    o.install=o.installF; o.installSrc=o.installF?"file":"";
-    o.warrant=o.warrantF; o.warrantSrc=o.warrantF?"file":"";
+    /* WarrantDate: ใช้คอลัมน์ในไฟล์ก่อน ถ้าไม่มีดึง "วันหมดอายุรอบถัดไป" จากช่อง Other
+       InstallDate: ใช้คอลัมน์ในไฟล์ก่อน ถ้าไม่มีนับถอยหลัง 1 ปีจาก WarrantDate */
+    if(o.warrantF){ o.warrant=o.warrantF; o.warrantSrc="file"; }
+    else { o.warrant=extractExpiry(o.other, o.open||o.fin); o.warrantSrc=o.warrant?"other":""; }
+    if(o.installF){ o.install=o.installF; o.installSrc="file"; }
+    else { o.install=o.warrant?minusYear(o.warrant):null; o.installSrc=o.install?"minus1y":""; }
     o.due=o.next||o.warrantF;
     o.days=o.due?Math.round((o.due-TODAY)/DAY):null;
     o.bucket=bucketOf(o.days);
@@ -220,7 +272,7 @@ const pillProc=r=>r.proc?`<span class="pill ${r.done?'p-done':'p-pend'}">${esc(r
 const pillDays=r=>{const b=BUCKETS.find(x=>x.k===r.bucket);
   const t=r.days===null?"ไม่มีวันครบรอบ":r.days<0?`เลยมา ${nf(-r.days)} วัน`:r.days===0?"ครบวันนี้":`อีก ${nf(r.days)} วัน`;
   return `<span class="pill p-${r.bucket}" title="${b.label}">${t}</span>`;};
-const dCell=(d,src)=>d?(src==="calc"?`<span class="derived" title="คำนวณจากข้อมูลในไฟล์">${fmtD(d)}</span>`:fmtD(d)):"";
+const dCell=(d,src)=>d?(src==="other"?`<span title="ดึงจากข้อความวันหมดอายุรอบถัดไปในช่อง Other">${fmtD(d)}</span>`:src==="minus1y"?`<span title="นับถอยหลัง 1 ปีจาก WarrantDate">${fmtD(d)}</span>`:fmtD(d)):"";
 const snCell=r=>r.serial?`<span class="sn${r.serialSrc==='other'?' derived':''}" ${r.serialSrc==='other'?'title="ดึงจากช่อง Other"':''}>${safe(r.serial)}</span>`:'';
 /* ตัวเลขที่ไม่ใช่เบอร์โทร (Work order, Job no., เลขทะเบียน ฯลฯ) ถูกแบ่งเป็นช่วงสั้นๆ ข้างในหน้าเว็บ
    เพื่อไม่ให้ส่วนเสริม 3CX Click2Call จับไปเป็นเบอร์ — หน้าตาและการคัดลอกยังเหมือนเดิม */
