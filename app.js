@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.9.3", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.10.0", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -409,21 +409,24 @@ function renderTables(rows){
   renderStations(rows);
 }
 
-/* ===== รายงานต่ออายุรับรอง (v1.9.1): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 2 คอลัมน์ Job | Warranty Date (หลาย Job เรียงลงมาเป็นบรรทัด) =====
-   ปีที่ใส่ Job = ปีที่ตีตราเสร็จ (Finished date) · งานที่ยังไม่เสร็จใช้ปีที่เปิดงาน
-   แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS — ไม่คาดการณ์ล่วงหน้าไปใส่ปีถัดไป */
-const ST_SLOTS=3;
-/* รายงานต่ออายุรับรองติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
+/* ===== รายงานต่ออายุรับรอง (v1.10.0): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 3 คอลัมน์ Job | Meter Sealing Date | Warranty Date =====
+   ตีตรา 1 ปีต่อครั้ง: Job ที่ตีตราปีนี้ → Job + Meter Sealing Date อยู่ในปีนี้ ส่วน Warranty Date (วันหมดอายุรอบถัดไปจากช่อง Other)
+   ไปอยู่ในช่อง Warranty Date ของปีที่หมดอายุ (ปกติคือปีถัดไป)
+   Meter Sealing Date = InstallDate จากไฟล์ ถ้าไม่มี = Warranty Date ย้อนหลัง 1 ปี
+   แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
+/* ติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
 const REPORT_KEYWORDS=["ติดตั้งใหม่","ชั้นแรกทั้งสถานี","หมดอายุ"];
 const KW_N=REPORT_KEYWORDS.map(k=>k.replace(/\s+/g,""));
 const isReportJob=r=>{const t=String(r.problem||"").replace(/\s+/g,""); return KW_N.some(k=>t.includes(k));};
 const stKey=r=>String(r.code||"").trim()||("name:"+String(r.name||"").trim());
-function jobYear(r){ const d=r.done?(r.fin||r.install||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
+const sealDate=r=>r.install||(r.due?minusYear(r.due):null);
+function jobYear(r){ const d=r.done?(sealDate(r)||r.fin||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
 function stDueCls(r){ if(!r.due) return ""; if(fuOf(r).s==="renewed") return "renewed"; return r.days<0?"late":r.days<=90?"soon":"plan"; }
-function stItems(rs,Y){
-  const out=[];
-  rs.forEach(r=>{ if(jobYear(r)===Y) out.push({r,kind:r.done?"done":"pend",d:r.done?(r.fin||r.install):r.open}); });
-  return out.sort((a,b)=>(a.d?+a.d:9e15)-(b.d?+b.d:9e15));
+const byD=(a,b)=>(a.d?+a.d:9e15)-(b.d?+b.d:9e15);
+function stYear(rs,Y){
+  const jobs=rs.filter(r=>jobYear(r)===Y).map(r=>({r,kind:r.done?"done":"pend",d:r.done?sealDate(r):r.open})).sort(byD);
+  const warr=rs.filter(r=>r.done&&r.due&&r.due.getFullYear()===Y).map(r=>({r,d:r.due})).sort(byD);
+  return {jobs,warr};
 }
 function stGroups(rows){
   const m=new Map();
@@ -434,22 +437,23 @@ function stGroups(rows){
     const open=rs.filter(r=>r.due&&fuOf(r).s!=="renewed"&&fuOf(r).s!=="declined");
     const near=open.length?open.reduce((a,b)=>a.days<=b.days?a:b):null;
     return {rs,code:last.code,name:last.name,brand:last.brand,inform:last.inform,n:rs.length,near,
-      years:YR_COLS.map(Y=>stItems(rs,Y))};
+      years:YR_COLS.map(Y=>stYear(rs,Y))};
   });
 }
 function stJobPart(it){
   const r=it.r, f=fuOf(r), fo=f.s?FU.find(o=>o.k===f.s):null;
-  return `<b>${safe(r.job||r.wo)}</b>${fo?`<div class="sfu"><span class="pill p-${fo.cls}">${fo.label}</span></div>`:""}`;
+  return `<b>${safe(r.job||r.wo)}</b>${fo?`<span class="sfu"><span class="pill p-${fo.cls}">${fo.label}</span></span>`:""}`;
 }
-function stDatePart(it){
-  const r=it.r;
-  if(it.kind==="pend") return `<div class="yev pend">⏳ รอดำเนินการ</div>`;
-  if(!r.due) return `<span class="muted">—</span>`;
-  const c=stDueCls(r);
+function stSealPart(it){
+  if(it.kind==="pend") return `<span class="yev pend" title="เปิดงาน ${fmtD(it.r.open)}">⏳ รอดำเนินการ</span>`;
+  const r=it.r, est=!r.install||r.installSrc==="minus1y";
+  return it.d?`<span class="yev done" title="${est?"Warranty Date ย้อนหลัง 1 ปี":"InstallDate จากไฟล์"}${r.fin?" · Finished date "+fmtD(r.fin):""}">${fmtD(it.d)}</span>`:`<span class="muted">—</span>`;
+}
+function stWarrPart(it){
+  const r=it.r, c=stDueCls(r);
   const tip=c==="renewed"?"ตกลงต่อสัญญาแล้ว":r.days<0?`เลยกำหนด ${nf(-r.days)} วัน`:`อีก ${nf(r.days)} วัน`;
-  return `<div class="yev ${c}" title="ตีตรา ${fmtD(it.d)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtD(r.due)}</div>`;
+  return `<span class="yev ${c}" title="Job ${esc(r.job||r.wo)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtD(r.due)}</span>`;
 }
-const stJobHtml=it=>stJobPart(it)+stDatePart(it);
 const ST_COLS=[{k:"code",label:"ID Station"},{k:"name",label:"Name"},{k:"brand",label:"Brand"},{k:"inform",label:"InformBy (ผู้ติดต่อ)"},{k:"n",label:"Job"},{k:"near",label:"ครบรอบใกล้สุด"}];
 function stSortVal(g,k){ if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
 function renderStations(rows){
@@ -458,24 +462,21 @@ function renderStations(rows){
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
   const multi=gs.filter(g=>g.n>1).length;
-  $("stInfo").innerHTML=`${nf(gs.length)} สถานี · มีมากกว่า 1 Job ${nf(multi)} สถานี · คลิกที่ Job เพื่อดูรายละเอียด / บันทึกการติดตาม<br><span class="kwnote">แสดงเฉพาะ Job ที่ช่อง Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} — ${nf(kept.length)} จาก ${nf(rows.length)} Job (ไม่แสดง ${nf(rows.length-kept.length)} Job)</span>`;
+  $("stInfo").innerHTML=`${nf(gs.length)} สถานี · มีมากกว่า 1 Job ${nf(multi)} สถานี · คลิกที่ Job / วันที่ เพื่อดูรายละเอียด / บันทึกการติดตาม<br><span class="kwnote">แสดงเฉพาะ Job ที่ช่อง Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} — ${nf(kept.length)} จาก ${nf(rows.length)} Job (ไม่แสดง ${nf(rows.length-kept.length)} Job) · Warranty Date แสดงในปีที่หมดอายุ (ตีตราปีละครั้ง)</span>`;
   const pages=Math.max(1,Math.ceil(gs.length/PAGE)); S.page.st=Math.min(S.page.st||0,pages-1);
   const p=S.page.st, slice=gs.slice(p*PAGE,(p+1)*PAGE);
-  const t=$("tSt");
+  const t=$("tSt"), NC=3;
   const head0=ST_COLS.map(c=>`<th rowspan="3" data-k="${c.k}">${esc(c.label)}${s.k===c.k?`<span class="ar">${s.d>0?"▲":"▼"}</span>`:""}</th>`).join("")
-    +`<th colspan="${YR_COLS.length*2}" class="rpt ysep">รายงานต่ออายุรับรอง</th>`;
-  const head1=YR_COLS.map((Y,i)=>`<th colspan="2" class="yh y${i} ysep">${Y}</th>`).join("");
-  const head2=YR_COLS.map((Y,i)=>`<th class="sj y${i} ysep">Job</th><th class="sj y${i}">Warranty Date</th>`).join("");
+    +`<th colspan="${YR_COLS.length*NC}" class="rpt ysep">รายงานต่ออายุรับรอง</th>`;
+  const head1=YR_COLS.map((Y,i)=>`<th colspan="${NC}" class="yh y${i} ysep">${Y}</th>`).join("");
+  const head2=YR_COLS.map((Y,i)=>`<th class="sj y${i} ysep">Job</th><th class="sj y${i} vsep">Meter Sealing Date</th><th class="sj y${i} vsep">Warranty Date</th>`).join("");
   const nearCell=g=>g.near?pillDays(g.near):'<span class="muted">—</span>';
+  const ent=(L,fn)=>L.map(it=>`<div class="sent" data-i="${S.all.indexOf(it.r)}" title="คลิกเพื่อดูรายละเอียด / บันทึกการติดตาม">${fn(it)}</div>`).join("");
   const body=slice.map(g=>{
-    const cells=g.years.map(L=>{
-      if(!L.length) return `<td class="ysep"></td><td></td>`;
-      const ent=(fn)=>L.map(it=>`<div class="sent" data-i="${S.all.indexOf(it.r)}" title="คลิกเพื่อดูรายละเอียด / บันทึกการติดตาม">${fn(it)}</div>`).join("");
-      return `<td class="ysep sjc">${ent(stJobPart)}</td><td class="sdc">${ent(stDatePart)}</td>`;
-    }).join("");
+    const cells=g.years.map(({jobs,warr})=>`<td class="ysep sjc">${ent(jobs,stJobPart)}</td><td class="vsep sdc">${ent(jobs,stSealPart)}</td><td class="vsep sdc">${ent(warr,stWarrPart)}</td>`).join("");
     return `<tr><td class="nw"><b>${safe(g.code)}</b></td><td class="stname">${safe(g.name)}</td><td class="nw">${safe(g.brand)}</td><td class="stinf">${telify(g.inform)}</td><td class="num">${nf(g.n)}</td><td class="nw">${nearCell(g)}</td>${cells}</tr>`;
   }).join("");
-  t.innerHTML=`<thead><tr>${head0}</tr><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body||`<tr><td colspan="${ST_COLS.length+YR_COLS.length*2}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
+  t.innerHTML=`<thead><tr>${head0}</tr><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body||`<tr><td colspan="${ST_COLS.length+YR_COLS.length*NC}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
   t.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;s.d=s.k===k?-s.d:1;s.k=k;render();});
   requestAnimationFrame(()=>{const tr=t.querySelectorAll("thead tr");if(tr.length>2&&tr[0].offsetHeight){t.style.setProperty("--sth1",tr[0].offsetHeight+"px");t.style.setProperty("--sth2",(tr[0].offsetHeight+tr[1].offsetHeight)+"px");}});
   t.querySelectorAll(".sent").forEach(el=>{el.onclick=()=>{if(window.getSelection().toString())return;openDrawer(S.all[+el.dataset.i]);};
@@ -486,29 +487,20 @@ function renderStations(rows){
     <span class="b"><button class="btn" type="button" data-d="-1" ${p===0?"disabled":""}>ก่อนหน้า</button><span class="muted" style="align-self:center">หน้า ${p+1}/${pages}</span><button class="btn" type="button" data-d="1" ${p>=pages-1?"disabled":""}>ถัดไป</button></span>`;
   pg.querySelectorAll("button").forEach(b=>b.onclick=()=>{S.page.st+= +b.dataset.d;render();$("panelSt").scrollIntoView({block:"start"});});
 }
-function openStYear(g,yi){
-  const L=g.years[yi], Y=YR_COLS[yi];
-  openPanel(`${g.code||""} ${g.name||""} · ปี ${Y} (${L.length} Job)`,
-    `<div class="stlist">${L.map(it=>`<button type="button" class="stitem" data-i="${S.all.indexOf(it.r)}">${stJobHtml(it)}</button>`).join("")}</div>`);
-  $("p2Body").querySelectorAll(".stitem").forEach(b=>b.onclick=()=>{$("panel2").hidden=true;openDrawer(S.all[+b.dataset.i]);});
-}
-const stDateTxt=it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.r.due);
-const stItemTxt=it=>{const r=it.r, j=r.job||r.wo||"";
-  if(it.kind==="pend") return `${j} · รอดำเนินการ (เปิด ${fmtD(r.open)})`;
-  if(it.kind==="renew") return `${j} · ต้องตีตราใหม่ ${fmtD(r.due)}`;
-  return `${j} · ตีตรา ${fmtD(it.d)}${r.due?" · ครบรอบ "+fmtD(r.due):""}`;};
 function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
   const head=["ID Station","Name","Brand","InformBy","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
-    ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Warranty Date`])];
+    ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Meter Sealing Date`,`${Y} Warranty Date`])];
   const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
-    ...g.years.flatMap(L=>[L.map(it=>it.r.job||it.r.wo||"").join("\n"),L.map(stDateTxt).join("\n")])].map(v=>v==null?"":String(v)))];
+    ...g.years.flatMap(({jobs,warr})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
+      jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
+      warr.map(it=>`${fmtD(it.d)} (${it.r.job||it.r.wo||""})`).join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%2?16:12}));
+  ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%3===2?24:14}));
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"รายสถานี");
-  XLSX.writeFile(wb,`SETS-รายสถานี-${isoD(new Date())}.xlsx`);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"รายงานต่ออายุรับรอง");
+  XLSX.writeFile(wb,`SETS-รายงานต่ออายุรับรอง-${isoD(new Date())}.xlsx`);
   banner(`Export ${nf(gs.length)} สถานีแล้ว`,"ok");
 }
 const TABS=[["renew","tabRenew","panelRenew"],["st","tabSt","panelSt"],["all","tabAll","panelAll"]];

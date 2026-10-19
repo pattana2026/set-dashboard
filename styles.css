@@ -220,11 +220,11 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .yev.done,.yev.renewed{color:var(--ok)}.yev.late{color:var(--bad);font-weight:600}.yev.soon{color:var(--warn);font-weight:600}.yev.plan{color:var(--fg)}.yev.next{color:var(--muted)}
 
 /* v1.9.0 รายสถานี: แต่ละปี = Job | วันที่ */
-.sttable th,.sttable td{vertical-align:top;padding:7px 8px}
+.sttable th,.sttable td{vertical-align:top;padding:7px 7px}
 .sttable thead tr:nth-child(2) th{top:var(--sth1,34px)}
 .sttable thead tr:nth-child(3) th{top:var(--sth2,68px)}
 .sttable th.rpt{text-align:center;font-size:14px;font-weight:700;cursor:default}
-.sttable th.yh{text-align:center;font-size:14px;cursor:default;min-width:190px}
+.sttable th.yh{text-align:center;font-size:14px;cursor:default}
 .sttable th.yh small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
 .sttable th.sj{cursor:default;font-size:11.5px}
 .sttable th.y0{background:color-mix(in srgb,var(--ok) 14%,var(--surface-2))}
@@ -232,10 +232,10 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .sttable th.y2{background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
 .sttable .ysep{border-left:3px solid var(--line)}
 .sttable td.num{text-align:center;font-weight:700}
-.sttable td.stname{min-width:150px;max-width:210px}
-.sttable td.stinf{min-width:140px;max-width:190px;font-size:12px;word-break:break-word}
+.sttable td.stname{min-width:130px;max-width:170px}
+.sttable td.stinf{min-width:120px;max-width:150px;font-size:12px;word-break:break-word}
 .sttable td.sjc,.sttable td.sdc{white-space:nowrap;font-size:12px}
-.sent{height:24px;line-height:20px;padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer;overflow:hidden}
+.sent{height:24px;line-height:20px;white-space:nowrap;padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer;overflow:hidden}
 .sent+.sent{border-top:1px dashed var(--line)}
 .sent.hov{background:var(--surface-2)}
 .sjc .sent b{font-size:12.5px}
@@ -244,3 +244,6 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .stlist{display:grid;gap:8px}
 .stitem{text-align:left;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit;color:var(--fg)}
 .kwnote{color:var(--muted);font-size:12px}
+.sttable .vsep{border-left:1px solid var(--line)}
+.sttable td.sdc{min-width:84px}
+.sttable th.sj{white-space:normal;line-height:1.25}
