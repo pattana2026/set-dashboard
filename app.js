@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.11.0", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.11.1", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -415,19 +415,18 @@ function renderTables(rows){
   renderStations(rows);
 }
 
-/* ===== รายงานต่ออายุรับรอง (v1.10.0): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 3 คอลัมน์ Job | Meter Sealing Date | Warranty Date =====
-   ตีตรา 1 ปีต่อครั้ง: Job ที่ตีตราปีนี้ → Job + Meter Sealing Date อยู่ในปีนี้ ส่วน Warranty Date (วันหมดอายุรอบถัดไปจากช่อง Other)
-   ไปอยู่ในช่อง Warranty Date ของปีที่หมดอายุ (ปกติคือปีถัดไป)
-   Meter Sealing Date = InstallDate จากไฟล์ ถ้าไม่มี = Warranty Date ย้อนหลัง 1 ปี
-   แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
+/* ===== รายงานต่ออายุรับรอง (v1.11.1): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 3 คอลัมน์ Job | Finish date | วันที่ตรวจรับรอง =====
+   ตีตรา 1 ปีต่อครั้ง: Job ที่ปิดงาน (Finish date) ปีนี้ → Job + Finish date อยู่ในปีนี้
+   ส่วนวันที่ตรวจรับรอง (วันหมดอายุรอบถัดไปจากช่อง Other) ไปอยู่ในปีที่ครบกำหนด (ปกติคือปีถัดไป)
+   งานที่ยังไม่ปิดใช้ปีที่เปิดงาน · แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
 /* ติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
 const REPORT_KEYWORDS=["ติดตั้งใหม่","ชั้นแรกทั้งสถานี","หมดอายุ"];
 const KW_N=REPORT_KEYWORDS.map(k=>k.replace(/\s+/g,""));
 const isReportJob=r=>{const t=String(r.problem||"").replace(/\s+/g,""); return KW_N.some(k=>t.includes(k));};
 const stKey=r=>String(r.code||"").trim()||("name:"+String(r.name||"").trim());
-/* ไม่มีวันหมดอายุใน Other แต่ปิดงานแล้ว → ใช้ Finish date เป็นวันตีตรา */
-const sealDate=r=>r.install||(r.due?minusYear(r.due):(r.done?r.fin:null));
-function jobYear(r){ const d=r.done?(sealDate(r)||r.fin||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
+/* วันตีตรา = Finish date (ปิดงาน) */
+const sealDate=r=>r.done?(r.fin||null):null;
+function jobYear(r){ const d=r.done?(r.fin||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
 function stDueCls(r){ if(!r.due) return ""; if(fuOf(r).s==="renewed") return "renewed"; return r.days<0?"late":r.days<=90?"soon":"plan"; }
 const byD=(a,b)=>(a.d?+a.d:9e15)-(b.d?+b.d:9e15);
 function stYear(rs,Y){
@@ -441,7 +440,7 @@ function stGroups(rows){
   return [...m.values()].map(rs=>{
     rs.sort((a,b)=>(+(a.open||0))-(+(b.open||0)));
     const last=rs[rs.length-1];
-    /* ติดตามแบบทั้งสถานี: Job ที่มีการตีตรารอบใหม่ (Meter Sealing Date ใหม่กว่า) แล้ว ถือว่าต่ออายุแล้ว */
+    /* ติดตามแบบทั้งสถานี: Job ที่มีการตีตรารอบใหม่ (Finish date ใหม่กว่า) แล้ว ถือว่าต่ออายุแล้ว */
     const sealed=rs.filter(r=>r.done&&sealDate(r));
     const sup=new Map();
     sealed.forEach(r=>{const sd=+sealDate(r); const nx=sealed.filter(x=>+sealDate(x)>sd).sort((a,b)=>sealDate(a)-sealDate(b))[0]; if(nx) sup.set(r,nx);});
@@ -457,12 +456,11 @@ function stJobPart(it){
 }
 function stSealPart(it){
   if(it.kind==="pend") return `<span class="yev pend" title="เปิดงาน ${fmtD(it.r.open)}">⏳ รอดำเนินการ</span>`;
-  const r=it.r, est=!r.install||r.installSrc==="minus1y";
-  return it.d?`<span class="yev done" title="${!r.due?"ไม่พบวันหมดอายุใน Other — ใช้ Finish date":est?"Warranty Date ย้อนหลัง 1 ปี":"InstallDate จากไฟล์"}${r.fin?" · Finished date "+fmtD(r.fin):""}">${fmtD(it.d)}</span>`:`<span class="muted">—</span>`;
+  return it.d?`<span class="yev done">${fmtD(it.d)}</span>`:`<span class="muted">—</span>`;
 }
 function stWarrPart(it){
   const r=it.r;
-  if(it.by) return `<span class="yev renewed" title="Job ${esc(r.job||r.wo)} · ต่ออายุแล้วโดย Job ${esc(it.by.job||it.by.wo)} (ตีตรา ${fmtD(sealDate(it.by))})">✅ ${fmtD(r.due)}</span>`;
+  if(it.by) return `<span class="yev renewed" title="Job ${esc(r.job||r.wo)} · ต่ออายุแล้วโดย Job ${esc(it.by.job||it.by.wo)} (Finish date ${fmtD(sealDate(it.by))})">✅ ${fmtD(r.due)}</span>`;
   const c=stDueCls(r);
   const tip=c==="renewed"?"ตกลงต่อสัญญาแล้ว":r.days<0?`เลยกำหนด ${nf(-r.days)} วัน`:`อีก ${nf(r.days)} วัน`;
   return `<span class="yev ${c}" title="Job ${esc(r.job||r.wo)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtD(r.due)}</span>`;
@@ -475,14 +473,14 @@ function renderStations(rows){
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
   const multi=gs.filter(g=>g.n>1).length;
-  $("stInfo").innerHTML=`${nf(gs.length)} สถานี · มีมากกว่า 1 Job ${nf(multi)} สถานี · คลิกที่ Job / วันที่ เพื่อดูรายละเอียด / บันทึกการติดตาม<br><span class="kwnote">แสดงเฉพาะ Job ที่ช่อง Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} — ${nf(kept.length)} จาก ${nf(rows.length)} Job (ไม่แสดง ${nf(rows.length-kept.length)} Job) · Warranty Date แสดงในปีที่หมดอายุ (ตีตราปีละครั้ง)</span>`;
+  $("stInfo").innerHTML=`${nf(gs.length)} สถานี · มีมากกว่า 1 Job ${nf(multi)} สถานี · คลิกที่ Job / วันที่ เพื่อดูรายละเอียด / บันทึกการติดตาม<br><span class="kwnote">แสดงเฉพาะ Job ที่ช่อง Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} — ${nf(kept.length)} จาก ${nf(rows.length)} Job (ไม่แสดง ${nf(rows.length-kept.length)} Job) · วันที่ตรวจรับรอง (วันหมดอายุรอบถัดไปจากช่อง Other) แสดงในปีที่ครบกำหนด (ตีตราปีละครั้ง)</span>`;
   const pages=Math.max(1,Math.ceil(gs.length/PAGE)); S.page.st=Math.min(S.page.st||0,pages-1);
   const p=S.page.st, slice=gs.slice(p*PAGE,(p+1)*PAGE);
   const t=$("tSt"), NC=3;
   const head0=ST_COLS.map(c=>`<th rowspan="3" data-k="${c.k}">${esc(c.label)}${s.k===c.k?`<span class="ar">${s.d>0?"▲":"▼"}</span>`:""}</th>`).join("")
     +`<th colspan="${YR_COLS.length*NC}" class="rpt ysep">รายงานต่ออายุรับรอง</th>`;
   const head1=YR_COLS.map((Y,i)=>`<th colspan="${NC}" class="yh y${i} ysep">${Y}</th>`).join("");
-  const head2=YR_COLS.map((Y,i)=>`<th class="sj y${i} ysep">Job</th><th class="sj y${i} vsep">Meter Sealing Date</th><th class="sj y${i} vsep">Warranty Date</th>`).join("");
+  const head2=YR_COLS.map((Y,i)=>`<th class="sj y${i} ysep">Job</th><th class="sj y${i} vsep">Finish date</th><th class="sj y${i} vsep">วันที่ตรวจรับรอง</th>`).join("");
   const nearCell=g=>g.near?pillDays(g.near):'<span class="muted">—</span>';
   const ent=(L,fn)=>L.map(it=>`<div class="sent" data-i="${S.all.indexOf(it.r)}" title="คลิกเพื่อดูรายละเอียด / บันทึกการติดตาม">${fn(it)}</div>`).join("");
   const body=slice.map(g=>{
@@ -504,7 +502,7 @@ function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
   const head=["ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
-    ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Meter Sealing Date`,`${Y} Warranty Date`])];
+    ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Finish date`,`${Y} วันที่ตรวจรับรอง`])];
   const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs,warr})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),

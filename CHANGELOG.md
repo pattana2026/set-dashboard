@@ -10,6 +10,11 @@
 
 ---
 
+## v1.11.1 — 19/10/2026
+- รายงานต่ออายุรับรอง: แต่ละปีเป็น **Job | Finish date | วันที่ตรวจรับรอง**
+  - ใช้ Finish date จริงแทน Meter Sealing Date (เดิมคำนวณย้อนหลัง 1 ปีจาก Warranty Date) และจัด Job ลงปีตาม Finish date
+  - เปลี่ยนชื่อคอลัมน์ Warranty Date เป็น "วันที่ตรวจรับรอง" (ทั้งหน้าจอและ Export)
+
 ## v1.11.0 — 19/10/2026
 - รองรับไฟล์รูปแบบใหม่ **MS_Track** (ใช้คอลัมน์ที่ไฮไลท์สีแดง): Work order, Open date, Finish date, Job no., Brand, Code, Station, Informer, InPhone, Problem, Other, Province, Technician, Section
   - Informer + InPhone รวมเป็นช่องผู้ติดต่อ (โทร 3CX ได้)
