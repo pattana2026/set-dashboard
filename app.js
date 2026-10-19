@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.12.1", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.12.2", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -437,7 +437,7 @@ function renderTables(rows){
 
 /* ===== รายงานต่ออายุรับรอง (v1.12.0): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 4 คอลัมน์ Job | Finish date | วันที่อายุรับรอง | วันที่ตรวจรับรองครั้งถัดไป =====
    ตีตรา 1 ปีต่อครั้ง: Job ที่ปิดงาน (Finish date) ปีนี้ → Job + Finish date อยู่ในปีนี้
-   วันที่อายุรับรอง = วันที่ก่อนสุดในช่อง Problem (บรรทัดเดียวกับ Job) · วันที่ตรวจรับรองครั้งถัดไป = วันหมดอายุรอบถัดไปจากช่อง Other ที่ครบกำหนดในปีนั้น (ปกติมาจาก Job ปีก่อน)
+   ทุกคอลัมน์อิง Job นั้นๆ (บรรทัดเดียวกัน ปีเดียวกับ Job): วันที่อายุรับรอง = วันที่ก่อนสุดในช่อง Problem · วันที่ตรวจรับรองครั้งถัดไป = วันหมดอายุรอบถัดไปจากช่อง Other ของ Job นี้ (อาจเป็นปีถัดไป)
    งานที่ยังไม่ปิดใช้ปีที่เปิดงาน · แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
 /* ติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
 const REPORT_KEYWORDS=["ติดตั้งใหม่","ชั้นแรกทั้งสถานี","หมดอายุ"];
@@ -451,8 +451,7 @@ function stDueCls(r){ if(!r.due) return ""; if(fuOf(r).s==="renewed") return "re
 const byD=(a,b)=>(a.d?+a.d:9e15)-(b.d?+b.d:9e15);
 function stYear(rs,Y){
   const jobs=rs.filter(r=>jobYear(r)===Y).map(r=>({r,kind:r.done?"done":"pend",d:r.done?sealDate(r):r.open})).sort(byD);
-  const warr=rs.filter(r=>r.done&&r.due&&r.due.getFullYear()===Y).map(r=>({r,d:r.due})).sort(byD);
-  return {jobs,warr};
+  return {jobs};
 }
 function stGroups(rows){
   const m=new Map();
@@ -467,7 +466,7 @@ function stGroups(rows){
     const open=rs.filter(r=>r.due&&!sup.has(r)&&fuOf(r).s!=="renewed"&&fuOf(r).s!=="declined");
     const near=open.length?open.reduce((a,b)=>a.days<=b.days?a:b):null;
     return {rs,code:last.code,name:last.name,brand:last.brand,inform:last.inform,n:rs.length,near,
-      years:YR_COLS.map(Y=>{const y=stYear(rs,Y); y.warr.forEach(it=>it.by=sup.get(it.r)); return y;})};
+      years:YR_COLS.map(Y=>{const y=stYear(rs,Y); y.jobs.forEach(it=>it.by=sup.get(it.r)); return y;})};
   });
 }
 function stJobPart(it){
@@ -484,7 +483,7 @@ function stAgePart(it){
   return `<span class="yev plain" title="วันที่อายุรับรองจากช่อง Problem (Job ${esc(r.job||r.wo)}) · ${fmtD(r.certDate)}">${fmtS(r.certDate)}</span>`;
 }
 function stWarrPart(it){
-  const r=it.r;
+  const r=it.r; if(!r.due) return `<span class="muted">—</span>`;
   if(it.by) return `<span class="yev renewed" title="Job ${esc(r.job||r.wo)} · ${fmtD(r.due)} · ต่ออายุแล้วโดย Job ${esc(it.by.job||it.by.wo)} (Finish date ${fmtD(sealDate(it.by))})">✅ ${fmtS(r.due)}</span>`;
   const c=stDueCls(r);
   const tip=c==="renewed"?"ตกลงต่อสัญญาแล้ว":r.days<0?`เลยกำหนด ${nf(-r.days)} วัน`:`อีก ${nf(r.days)} วัน`;
@@ -509,7 +508,7 @@ function renderStations(rows){
   const nearCell=g=>g.near?pillDays(g.near):'<span class="muted">—</span>';
   const ent=(L,fn)=>L.map(it=>`<div class="sent" data-i="${S.all.indexOf(it.r)}" title="คลิกเพื่อดูรายละเอียด / บันทึกการติดตาม">${fn(it)}</div>`).join("");
   const body=slice.map(g=>{
-    const cells=g.years.map(({jobs,warr})=>`<td class="ysep sjc">${ent(jobs,stJobPart)}</td><td class="vsep sdc">${ent(jobs,stSealPart)}</td><td class="vsep sdc">${ent(jobs,stAgePart)}</td><td class="vsep sdc">${ent(warr,stWarrPart)}</td>`).join("");
+    const cells=g.years.map(({jobs})=>`<td class="ysep sjc">${ent(jobs,stJobPart)}</td><td class="vsep sdc">${ent(jobs,stSealPart)}</td><td class="vsep sdc">${ent(jobs,stAgePart)}</td><td class="vsep sdc">${ent(jobs,stWarrPart)}</td>`).join("");
     return `<tr><td class="nw"><b>${safe(g.code)}</b></td><td class="stname">${safe(g.name)}</td><td class="nw">${safe(g.brand)}</td><td class="stinf">${telify(g.inform)}</td><td class="num">${nf(g.n)}</td><td class="nw">${nearCell(g)}</td>${cells}</tr>`;
   }).join("");
   t.innerHTML=`<thead><tr>${head0}</tr><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body||`<tr><td colspan="${ST_COLS.length+YR_COLS.length*NC}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
@@ -529,10 +528,10 @@ function exportStations(){
   const head=["ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
     ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Finish date`,`${Y} วันที่อายุรับรอง`,`${Y} วันที่ตรวจรับรองครั้งถัดไป`])];
   const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
-    ...g.years.flatMap(({jobs,warr})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
+    ...g.years.flatMap(({jobs})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
       jobs.map(it=>fmtD(it.r.certDate)).join("\n"),
-      warr.map(it=>`${fmtD(it.d)} (${it.r.job||it.r.wo||""})${it.by?" ต่ออายุแล้ว":""}`).join("\n")])].map(v=>v==null?"":String(v)))];
+      jobs.map(it=>it.r.due?`${fmtD(it.r.due)}${it.by?" (ต่ออายุแล้ว)":""}`:"").join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%4===3?26:14}));
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
