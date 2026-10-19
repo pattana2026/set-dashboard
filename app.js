@@ -1,20 +1,21 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.10.0", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.11.0", APP_RELEASED = "19/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
 /* ---------- field mapping (header row → internal keys) ---------- */
 const norm = s => String(s??"").toLowerCase().replace(/[\s.:_\-()\/]/g,"");
 const FIELDS = {
-  wo:["workorder"], job:["jobno"], open:["opendate"], fin:["finisheddate"], status:["status"],
-  brand:["brand"], code:["code","idstation","stationid","stationcode"], name:["name"], inform:["informby"], user:["username"], sup:["sup"],
+  wo:["workorder"], job:["jobno"], open:["opendate"], fin:["finisheddate","finishdate"], status:["status"],
+  brand:["brand"], code:["code","idstation","stationid","stationcode"], name:["name","station"], inform:["informby","informer"], phone:["inphone"],
+  user:["username","technician"], sup:["sup","section"], province:["province"],
   problem:["problem"], other:["other"], deadline:["deadline"], addr:["address"], month:["month"],
   reqno:["เลขที่คำขอออนไลน์"], reqdate:["วันที่ยื่นคำขอ"], proc:["สถานะดำเนินการ"], next:["ครบรอบครั้งถัดไป"],
   serialF:["serialnumber","serialno","serial","sn"], installF:["installdate","installationdate"],
   warrantF:["warrantdate","warrantydate","warrantyexpire","warrantyexpiredate"]
 };
-const REQUIRED = {wo:"Work order", job:"Job no.", name:"Name", proc:"สถานะดำเนินการ", next:"ครบรอบครั้งถัดไป"};
+const REQUIRED = {wo:"Work order", job:"Job no.", name:"Station", fin:"Finish date", other:"Other"};
 const DATE_KEYS = ["open","fin","deadline","reqdate","next","installF","warrantF"];
 
 function toDate(v){
@@ -99,6 +100,7 @@ function extractExpiry(text, ref){
 function minusYear(d){ const t=new Date(d.getFullYear()-1,d.getMonth(),d.getDate()); if(t.getMonth()!==d.getMonth()) return new Date(d.getFullYear()-1,d.getMonth()+1,0); return t; }
 
 /* Parse an array-of-arrays (header row + data rows) into job records. Same path for embedded data, uploads and a future SMS API. */
+const EN_M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function parseAOA(aoa){
   let h=-1;
   for(let i=0;i<Math.min(aoa.length,10);i++){ const n=(aoa[i]||[]).map(norm); if(n.includes("jobno")||n.includes("workorder")){h=i;break;} }
@@ -118,6 +120,12 @@ function parseAOA(aoa){
       o[k]=DATE_KEYS.includes(k)?toDate(v):(v===null||v===undefined?"":String(v).replace(/_x000D_/g,"").trim());
     }
     if(!o.wo&&!o.job&&!o.name) continue;
+    /* ไฟล์รูปแบบ MS_Track: Informer + InPhone, ไม่มีคอลัมน์สถานะดำเนินการ / Month → คำนวณจาก Finish date / Open date */
+    if(o.phone&&!o.inform.includes(o.phone)) o.inform=(o.inform?o.inform+" ":"")+o.phone;
+    o.province=o.province.replace(/\s+$/,"");
+    if(!o.proc) o.proc=o.fin?"ดำเนินการเรียบร้อย":"รอดำเนินการ";
+    { const md=/^\d{5}(\.\d+)?$/.test(o.month)?toDate(+o.month):/^\d{4}-\d{1,2}-\d{1,2}/.test(o.month)?toDate(o.month):null;
+      const src=md||(!o.month?o.open:null); if(src) o.month=EN_M[src.getMonth()]+","+String(src.getFullYear()%100).padStart(2,"0"); }
     o.serial=o.serialF; o.serialSrc=o.serialF?"file":"";
     /* WarrantDate: ใช้คอลัมน์ในไฟล์ก่อน ถ้าไม่มีดึง "วันหมดอายุรอบถัดไป" จากช่อง Other
        InstallDate: ใช้คอลัมน์ในไฟล์ก่อน ถ้าไม่มีนับถอยหลัง 1 ปีจาก WarrantDate */
@@ -131,7 +139,7 @@ function parseAOA(aoa){
     o.bucket=bucketOf(o.days);
     {const k=String(o.job||o.wo||"").trim().replace(/[^A-Za-z0-9_\-.~:@+]/g,"_").slice(0,190); o.fuKey=(k&&k!=="."&&k!=="..")?k:null;}
     o.done=/เรียบร้อย|เสร็จ|complete/i.test(o.proc);
-    o.hay=[o.wo,o.job,o.code,o.name,o.serial,o.reqno,o.addr,o.inform,o.user,o.sup,o.brand,o.problem].join(" ").toLowerCase();
+    o.hay=[o.wo,o.job,o.code,o.name,o.serial,o.reqno,o.addr,o.province,o.inform,o.user,o.sup,o.brand,o.problem].join(" ").toLowerCase();
     out.push(o);
   }
   return {rows:out, missing};
@@ -166,7 +174,7 @@ function buildFilterOptions(){
     sel.innerHTML=`<option value="">${label}: ทั้งหมด</option>`+keys.map(k=>`<option value="${esc(k)}">${esc(k)} (${cnt[k]})</option>`).join("");
     sel.value=keys.includes(cur)?cur:"";
   };
-  opt("fBrand","Brand","brand"); opt("fProc","สถานะดำเนินการ","proc"); opt("fSup","Sup.","sup"); opt("fUser","UserName","user");
+  opt("fBrand","Brand","brand"); opt("fProc","สถานะดำเนินการ","proc"); opt("fSup","Section","sup"); opt("fUser","Technician","user");
   const mo={}; S.all.forEach(r=>{if(r.month&&r.open){mo[r.month]=Math.max(mo[r.month]||0,+r.open);}else if(r.month&&!(r.month in mo))mo[r.month]=0;});
   const ms=Object.keys(mo).sort((a,b)=>mo[b]-mo[a]);
   const cntM={}; S.all.forEach(r=>{if(r.month)cntM[r.month]=(cntM[r.month]||0)+1;});
@@ -348,21 +356,19 @@ const COLS_RENEW=[
   {k:"fuS",label:"การติดตาม",cls:"nw",hl:1,r:fuCell},
   {k:"due",label:"WarrantDate (วันหมดอายุ)",cls:"nw",hl:1,r:dueCell},
   ...YR_COLS.map((Y,i)=>({k:"y"+i,label:yrLabel(Y,i),cls:"nw ycol",hl:1,r:yearCell(Y)})),
-  {label:"ID Station",...txt("code","nw")},{label:"Name",...txt("name","wide")},{label:"Brand",...txt("brand","nw")},
+  {label:"ID Station",...txt("code","nw")},{label:"Station",...txt("name","wide")},{label:"Brand",...txt("brand","nw")},
   {label:"Other (ผลตีตราครั้งที่แล้ว)",...txt("other","clamp")},
-  {label:"InformBy (ผู้ติดต่อ)",...telTxt("inform","wide")},{label:"Address",...telTxt("addr","clamp")},
-  {label:"เลขที่คำขอออนไลน์",...txt("reqno","nw")},{label:"Work order",...txt("wo","nw")},{label:"Job no.",...txt("job","nw")},{label:"Sup.",...txt("sup","wide")}
+  {label:"Informer / InPhone",...telTxt("inform","wide")},{label:"Province",...txt("province","nw")},
+  {label:"Work order",...txt("wo","nw")},{label:"Job no.",...txt("job","nw")},{label:"Section",...txt("sup","wide")}
 ];
 const COLS_ALL=[
   {k:"proc",label:"สถานะดำเนินการ",cls:"nw",r:pillProc},
   {label:"Work order",...txt("wo","nw")},{label:"Job no.",...txt("job","nw")},
-  {label:"Open date",...dt("open")},{label:"Finished date",...dt("fin")},
-  {label:"Brand",...txt("brand","nw")},{label:"ID Station",...txt("code","nw")},{label:"Name",...txt("name","wide")},
-  {label:"InformBy",...telTxt("inform","wide")},{label:"UserName",...telTxt("user","wide")},{label:"Sup.",...txt("sup","wide")},
+  {label:"Open date",...dt("open")},{label:"Finish date",...dt("fin")},
+  {label:"Brand",...txt("brand","nw")},{label:"ID Station",...txt("code","nw")},{label:"Station",...txt("name","wide")},
+  {label:"Informer / InPhone",...telTxt("inform","wide")},
   {label:"Problem",...txt("problem","clamp")},{label:"Other",...txt("other","clamp")},
-  {label:"Deadline",...dt("deadline")},{label:"Address",...telTxt("addr","clamp")},{label:"Month",...txt("month","nw")},
-  {label:"เลขที่คำขอออนไลน์",...txt("reqno","nw")},{label:"วันที่ยื่นคำขอ",...dt("reqdate")},
-  {label:"ครบรอบครั้งถัดไป",...dt("next")},
+  {label:"Province",...txt("province","nw")},{label:"Technician",...txt("user","nw")},{label:"Section",...txt("sup","wide")},
   {k:"serial",label:"SerialNumber",hl:1,r:snCell},
   {k:"install",label:"InstallDate",cls:"nw",hl:1,r:r=>dCell(r.install,r.installSrc)},
   {k:"warrant",label:"WarrantDate",cls:"nw",hl:1,r:r=>dCell(r.warrant,r.warrantSrc)}
@@ -419,7 +425,8 @@ const REPORT_KEYWORDS=["ติดตั้งใหม่","ชั้นแร�
 const KW_N=REPORT_KEYWORDS.map(k=>k.replace(/\s+/g,""));
 const isReportJob=r=>{const t=String(r.problem||"").replace(/\s+/g,""); return KW_N.some(k=>t.includes(k));};
 const stKey=r=>String(r.code||"").trim()||("name:"+String(r.name||"").trim());
-const sealDate=r=>r.install||(r.due?minusYear(r.due):null);
+/* ไม่มีวันหมดอายุใน Other แต่ปิดงานแล้ว → ใช้ Finish date เป็นวันตีตรา */
+const sealDate=r=>r.install||(r.due?minusYear(r.due):(r.done?r.fin:null));
 function jobYear(r){ const d=r.done?(sealDate(r)||r.fin||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
 function stDueCls(r){ if(!r.due) return ""; if(fuOf(r).s==="renewed") return "renewed"; return r.days<0?"late":r.days<=90?"soon":"plan"; }
 const byD=(a,b)=>(a.d?+a.d:9e15)-(b.d?+b.d:9e15);
@@ -434,10 +441,14 @@ function stGroups(rows){
   return [...m.values()].map(rs=>{
     rs.sort((a,b)=>(+(a.open||0))-(+(b.open||0)));
     const last=rs[rs.length-1];
-    const open=rs.filter(r=>r.due&&fuOf(r).s!=="renewed"&&fuOf(r).s!=="declined");
+    /* ติดตามแบบทั้งสถานี: Job ที่มีการตีตรารอบใหม่ (Meter Sealing Date ใหม่กว่า) แล้ว ถือว่าต่ออายุแล้ว */
+    const sealed=rs.filter(r=>r.done&&sealDate(r));
+    const sup=new Map();
+    sealed.forEach(r=>{const sd=+sealDate(r); const nx=sealed.filter(x=>+sealDate(x)>sd).sort((a,b)=>sealDate(a)-sealDate(b))[0]; if(nx) sup.set(r,nx);});
+    const open=rs.filter(r=>r.due&&!sup.has(r)&&fuOf(r).s!=="renewed"&&fuOf(r).s!=="declined");
     const near=open.length?open.reduce((a,b)=>a.days<=b.days?a:b):null;
     return {rs,code:last.code,name:last.name,brand:last.brand,inform:last.inform,n:rs.length,near,
-      years:YR_COLS.map(Y=>stYear(rs,Y))};
+      years:YR_COLS.map(Y=>{const y=stYear(rs,Y); y.warr.forEach(it=>it.by=sup.get(it.r)); return y;})};
   });
 }
 function stJobPart(it){
@@ -447,14 +458,16 @@ function stJobPart(it){
 function stSealPart(it){
   if(it.kind==="pend") return `<span class="yev pend" title="เปิดงาน ${fmtD(it.r.open)}">⏳ รอดำเนินการ</span>`;
   const r=it.r, est=!r.install||r.installSrc==="minus1y";
-  return it.d?`<span class="yev done" title="${est?"Warranty Date ย้อนหลัง 1 ปี":"InstallDate จากไฟล์"}${r.fin?" · Finished date "+fmtD(r.fin):""}">${fmtD(it.d)}</span>`:`<span class="muted">—</span>`;
+  return it.d?`<span class="yev done" title="${!r.due?"ไม่พบวันหมดอายุใน Other — ใช้ Finish date":est?"Warranty Date ย้อนหลัง 1 ปี":"InstallDate จากไฟล์"}${r.fin?" · Finished date "+fmtD(r.fin):""}">${fmtD(it.d)}</span>`:`<span class="muted">—</span>`;
 }
 function stWarrPart(it){
-  const r=it.r, c=stDueCls(r);
+  const r=it.r;
+  if(it.by) return `<span class="yev renewed" title="Job ${esc(r.job||r.wo)} · ต่ออายุแล้วโดย Job ${esc(it.by.job||it.by.wo)} (ตีตรา ${fmtD(sealDate(it.by))})">✅ ${fmtD(r.due)}</span>`;
+  const c=stDueCls(r);
   const tip=c==="renewed"?"ตกลงต่อสัญญาแล้ว":r.days<0?`เลยกำหนด ${nf(-r.days)} วัน`:`อีก ${nf(r.days)} วัน`;
   return `<span class="yev ${c}" title="Job ${esc(r.job||r.wo)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtD(r.due)}</span>`;
 }
-const ST_COLS=[{k:"code",label:"ID Station"},{k:"name",label:"Name"},{k:"brand",label:"Brand"},{k:"inform",label:"InformBy (ผู้ติดต่อ)"},{k:"n",label:"Job"},{k:"near",label:"ครบรอบใกล้สุด"}];
+const ST_COLS=[{k:"code",label:"ID Station"},{k:"name",label:"Station"},{k:"brand",label:"Brand"},{k:"inform",label:"Informer / InPhone"},{k:"n",label:"Job"},{k:"near",label:"ครบรอบใกล้สุด"}];
 function stSortVal(g,k){ if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
 function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
@@ -490,12 +503,12 @@ function renderStations(rows){
 function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
-  const head=["ID Station","Name","Brand","InformBy","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
+  const head=["ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
     ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Meter Sealing Date`,`${Y} Warranty Date`])];
   const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs,warr})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
-      warr.map(it=>`${fmtD(it.d)} (${it.r.job||it.r.wo||""})`).join("\n")])].map(v=>v==null?"":String(v)))];
+      warr.map(it=>`${fmtD(it.d)} (${it.r.job||it.r.wo||""})${it.by?" ต่ออายุแล้ว":""}`).join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%3===2?24:14}));
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
@@ -510,9 +523,9 @@ function openDrawer(r){
   $("dSub").textContent=[r.brand,r.wo,r.job].filter(Boolean).join(" · ");
   $("dTitle").textContent=r.name||"(ไม่ระบุชื่อสถานี)";
   const rows=[["สถานะครบรอบ",pillDays(r)],["WarrantDate",dCell(r.warrant,r.warrantSrc)],["SerialNumber",snCell(r)],["InstallDate",dCell(r.install,r.installSrc)],
-    ["สถานะดำเนินการ",pillProc(r)],["เลขที่คำขอออนไลน์",safe(r.reqno)],["วันที่ยื่นคำขอ",fmtD(r.reqdate)],["ครบรอบครั้งถัดไป",fmtD(r.next)],
-    ["ID Station",safe(r.code)],["Work order",safe(r.wo)],["Job no.",safe(r.job)],["Open date",fmtD(r.open)],["Finished date",fmtD(r.fin)],["Deadline",fmtD(r.deadline)],["Month",safe(r.month)],
-    ["InformBy",telify(r.inform)],["UserName",telify(r.user)],["Sup.",safe(r.sup)],["Address",telify(r.addr)],["Problem",safe(r.problem)],["Other",safe(r.other)]];
+    ["สถานะดำเนินการ",pillProc(r)],
+    ["ID Station",safe(r.code)],["Work order",safe(r.wo)],["Job no.",safe(r.job)],["Open date",fmtD(r.open)],["Finish date",fmtD(r.fin)],
+    ["Informer / InPhone",telify(r.inform)],["Province",safe(r.province)],["Technician",safe(r.user)],["Section",safe(r.sup)],["Problem",safe(r.problem)],["Other",safe(r.other)]];
   $("dBody").innerHTML=rows.map(([k,v])=>`<dt>${k}</dt><dd>${v||'<span class="muted">—</span>'}</dd>`).join("");
   const key=r.fuKey, f=(key&&S.fu[key])||{}, box=$("dFu");
   box.hidden=!(DB&&key);
@@ -746,8 +759,8 @@ const daysText = r => r.days === null ? "ไม่มีวันครบรอ
 const fuLabel = r => (FU.find(o => o.k === (fuOf(r).s || "")) || FU[0]).label;
 const EXP_FU = [["การติดตาม", fuLabel, 16], ["นัดติดตามครั้งถัดไป", r => fuOf(r).next ? fmtD(toDate(fuOf(r).next)) : "", 14], ["ผู้รับผิดชอบ", r => asgName(fuOf(r).asg), 16], ["บันทึกการติดตาม", r => fuOf(r).note || "", 40], ["บันทึกล่าสุดโดย", r => fuOf(r).by ? (S.names[fuOf(r).by] || "") : "", 16], ["บันทึกล่าสุดเมื่อ", r => fuOf(r).at ? fmtDT(fuOf(r).at) : "", 17]];
 const EXP_RENEW = [["สถานะครบรอบ", daysText, 16], ["WarrantDate (วันหมดอายุ)", r => fmtD(r.due), 14], ...YR_COLS.map((Y,i)=>[yrLabel(Y,i), r => yearEvents(r,Y).map(e=>e.txt).join(" | "), 30]), ["ที่มาของวันหมดอายุ", r => r.dueSrc === "next" ? "ครบรอบครั้งถัดไป (ไม่พบใน Other)" : r.warrantSrc === "file" ? "ไฟล์" : r.due ? "ช่อง Other" : "", 22], ...EXP_FU,
-  ["ID Station", r => r.code, 11], ["Name", r => r.name, 36], ["Brand", r => r.brand, 9], ["Other", r => r.other, 50], ["InformBy", r => r.inform, 32], ["Address", r => r.addr, 50], ["เลขที่คำขอออนไลน์", r => r.reqno, 18], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Sup.", r => r.sup, 26]];
-const EXP_ALL = [["สถานะดำเนินการ", r => r.proc, 16], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Open date", r => fmtD(r.open), 11], ["Finished date", r => fmtD(r.fin), 11], ["Brand", r => r.brand, 9], ["ID Station", r => r.code, 11], ["Name", r => r.name, 36], ["InformBy", r => r.inform, 32], ["UserName", r => r.user, 30], ["Sup.", r => r.sup, 26], ["Problem", r => r.problem, 40], ["Other", r => r.other, 50], ["Deadline", r => fmtD(r.deadline), 11], ["Address", r => r.addr, 50], ["Month", r => r.month, 9], ["เลขที่คำขอออนไลน์", r => r.reqno, 18], ["วันที่ยื่นคำขอ", r => fmtD(r.reqdate), 12], ["ครบรอบครั้งถัดไป", r => fmtD(r.next), 14], ["SerialNumber", r => r.serial, 20], ["InstallDate", r => fmtD(r.install), 11], ["WarrantDate", r => fmtD(r.warrant), 11], ["สถานะครบรอบ", daysText, 16], ["การติดตาม", fuLabel, 16]];
+  ["ID Station", r => r.code, 11], ["Station", r => r.name, 36], ["Brand", r => r.brand, 9], ["Other", r => r.other, 50], ["Informer / InPhone", r => r.inform, 32], ["Province", r => r.province, 14], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Section", r => r.sup, 26]];
+const EXP_ALL = [["สถานะดำเนินการ", r => r.proc, 16], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Open date", r => fmtD(r.open), 11], ["Finish date", r => fmtD(r.fin), 11], ["Brand", r => r.brand, 9], ["ID Station", r => r.code, 11], ["Station", r => r.name, 36], ["Informer / InPhone", r => r.inform, 32], ["Problem", r => r.problem, 40], ["Other", r => r.other, 50], ["Province", r => r.province, 14], ["Technician", r => r.user, 14], ["Section", r => r.sup, 26], ["SerialNumber", r => r.serial, 20], ["InstallDate", r => fmtD(r.install), 11], ["WarrantDate", r => fmtD(r.warrant), 11], ["สถานะครบรอบ", daysText, 16], ["การติดตาม", fuLabel, 16]];
 function exportXlsx(which){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const rows = sortRows((which === "renew" ? S.renRows : S.allRows) || [], S.sort[which]);

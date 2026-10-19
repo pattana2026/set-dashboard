@@ -220,7 +220,7 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .yev.done,.yev.renewed{color:var(--ok)}.yev.late{color:var(--bad);font-weight:600}.yev.soon{color:var(--warn);font-weight:600}.yev.plan{color:var(--fg)}.yev.next{color:var(--muted)}
 
 /* v1.9.0 รายสถานี: แต่ละปี = Job | วันที่ */
-.sttable th,.sttable td{vertical-align:top;padding:7px 7px}
+.sttable th,.sttable td{vertical-align:top;padding:7px 6px}
 .sttable thead tr:nth-child(2) th{top:var(--sth1,34px)}
 .sttable thead tr:nth-child(3) th{top:var(--sth2,68px)}
 .sttable th.rpt{text-align:center;font-size:14px;font-weight:700;cursor:default}
@@ -233,7 +233,7 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .sttable .ysep{border-left:3px solid var(--line)}
 .sttable td.num{text-align:center;font-weight:700}
 .sttable td.stname{min-width:130px;max-width:170px}
-.sttable td.stinf{min-width:120px;max-width:150px;font-size:12px;word-break:break-word}
+.sttable td.stinf{min-width:115px;max-width:145px;font-size:12px;word-break:break-word}
 .sttable td.sjc,.sttable td.sdc{white-space:nowrap;font-size:12px}
 .sent{height:24px;line-height:20px;white-space:nowrap;padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer;overflow:hidden}
 .sent+.sent{border-top:1px dashed var(--line)}

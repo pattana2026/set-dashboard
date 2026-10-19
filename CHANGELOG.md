@@ -10,6 +10,16 @@
 
 ---
 
+## v1.11.0 — 19/10/2026
+- รองรับไฟล์รูปแบบใหม่ **MS_Track** (ใช้คอลัมน์ที่ไฮไลท์สีแดง): Work order, Open date, Finish date, Job no., Brand, Code, Station, Informer, InPhone, Problem, Other, Province, Technician, Section
+  - Informer + InPhone รวมเป็นช่องผู้ติดต่อ (โทร 3CX ได้)
+  - สถานะดำเนินการ: มี Finish date = ดำเนินการเรียบร้อย, ไม่มี = รอดำเนินการ
+  - Month คำนวณจากคอลัมน์ Month / Open date
+  - ตาราง / รายละเอียด / Export เปลี่ยนเป็น Station, Informer / InPhone, Province, Technician, Section (ตัด Deadline, Address, เลขที่คำขอ, วันที่ยื่นคำขอ, ครบรอบครั้งถัดไป ที่ไม่มีในไฟล์ใหม่)
+  - ตัวกรอง Sup. → Section, UserName → Technician
+- รายงานต่ออายุรับรอง: ติดตามแบบทั้งสถานี — ถ้าสถานีมีการตีตรารอบใหม่แล้ว Warranty Date ของ Job ก่อนหน้าแสดงเป็น ✅ (ต่ออายุแล้ว) และไม่นับใน "ครบรอบใกล้สุด"
+  - Job ที่ปิดงานแล้วแต่ไม่พบวันหมดอายุใน Other ใช้ Finish date เป็น Meter Sealing Date
+
 ## v1.10.0 — 19/10/2026
 - รายงานต่ออายุรับรอง: แต่ละปีมี 3 คอลัมน์ **Job | Meter Sealing Date | Warranty Date** พร้อมเส้นแบ่งคอลัมน์
   - Job ที่ตีตราปีนี้ → Job และ Meter Sealing Date อยู่ในปีนี้

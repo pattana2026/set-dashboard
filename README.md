@@ -120,7 +120,7 @@ where email = 'somchai@set.local';
 
 ## รูปแบบไฟล์ Excel ที่รองรับ
 ใช้แถวที่ 1 เป็นหัวตาราง ระบบจับคอลัมน์จากชื่อ (ไม่สนลำดับ):
-`Work order`, `Job no.`, `Open date`, `Finished date`, `Brand`, `Code` (ID Station), `Name`, `InformBy`, `UserName`, `Sup.`, `Problem`, `Other`, `Deadline`, `Address`, `Month`, `เลขที่คำขอออนไลน์`, `วันที่ยื่นคำขอ`, `สถานะดำเนินการ`, `ครบรอบครั้งถัดไป`
+`Work order`, `Open date`, `Finish date`, `Job no.`, `Brand`, `Code` (ID Station), `Station`, `Informer`, `InPhone`, `Problem`, `Other`, `Province`, `Technician`, `Section` (ไฟล์ MS_Track)
 และถ้ามี: `SerialNumber`, `InstallDate`, `WarrantDate`
 
 ต้องมีอย่างน้อย `Work order` หรือ `Job no.` จึงจะ Upload ได้

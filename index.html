@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<!-- SETS Seal Tracker v1.10.0 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
+<!-- SETS Seal Tracker v1.11.0 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
 <title>SETS Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=1.10.0">
+<link rel="stylesheet" href="styles.css?v=1.11.0">
 </head>
 <body>
 <div class="wrap">
@@ -45,11 +45,11 @@
   </div>
 
   <section class="filters" aria-label="ตัวกรอง">
-    <input type="search" id="q" placeholder="ค้นหา ID Station, ชื่อสถานี, Work order, Job no., Serial, เลขที่คำขอ, ผู้แจ้ง…">
+    <input type="search" id="q" placeholder="ค้นหา ID Station, ชื่อสถานี, Work order, Job no., Serial, จังหวัด, ผู้แจ้ง…">
     <select id="fBrand" aria-label="Brand"></select>
     <select id="fProc" aria-label="สถานะดำเนินการ"></select>
-    <select id="fSup" aria-label="Sup."></select>
-    <select id="fUser" aria-label="UserName"></select>
+    <select id="fSup" aria-label="Section"></select>
+    <select id="fUser" aria-label="Technician"></select>
     <select id="fMonth" aria-label="Month"></select>
     <button class="clear" id="clearF" type="button">ล้างตัวกรอง</button>
   </section>
@@ -127,7 +127,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.10.0"></script>
-<script src="app.js?v=1.10.0"></script>
+<script src="config.js?v=1.11.0"></script>
+<script src="app.js?v=1.11.0"></script>
 </body>
 </html>
