@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.12.2", APP_RELEASED = "19/10/2026";
+const APP_VERSION = "1.12.5", APP_RELEASED = "20/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -42,6 +42,7 @@ function bucketOf(days){
   if(days===null) return "none";
   if(days<0) return "overdue"; if(days<=30) return "d30"; if(days<=60) return "d60"; if(days<=90) return "d90"; return "later";
 }
+const RENEW_BUCKETS = ["overdue","d30","d60"];
 const BUCKETS = [
   {k:"overdue",label:"เลยกำหนดแล้ว",color:"var(--bad)"},
   {k:"d30",label:"ภายใน 30 วัน",color:"var(--warn)"},
@@ -102,7 +103,9 @@ function extractProblemDate(text, ref){
 }
 function extractExpiry(text, ref){
   if(!text) return null; const s=String(text).replace(/_x000D_/g," ");
-  const kw=/(หมดอายุ|สิ้นอายุ|ครบอายุ|สิ้นคำรับรอง)/g; let m; const cands=[];
+  /* คีย์เวิร์ด: ทุกคำที่มี "อายุ" (หมดอายุ, สิ้นอายุ, ครบอายุ, อายุคำรับรอง และคำพิมพ์ผิด เช่น หดมอายุ / หทดอายุ / สิ้อายุ),
+     "หมดอาย", "คำรับรอง" (หมดคำรับรอง, สิ้นคำรับรอง) และ "ครบกำหนด" — วันที่ต้องอยู่หลัง Open date 150 วัน – 2 ปี */
+  const kw=/(อายุ|หมดอาย|คำรับรอง|ครบกำหนด)/g; let m; const cands=[];
   const lo=ref?+ref+150*86400000:0, hi=ref?+ref+2*366*86400000:Infinity, target=ref?+ref+365*86400000:null;
   while((m=kw.exec(s))){
     const win=s.slice(m.index, m.index+70);
@@ -294,8 +297,9 @@ function renderBrand(rows){
 }
 function renderChips(rows){
   const c={}; rows.forEach(r=>c[r.bucket]=(c[r.bucket]||0)+1);
-  const active=(c.overdue||0)+(c.d30||0)+(c.d60||0)+(c.d90||0);
-  const chips=[{k:"active",label:"ต้องติดตาม (เลยกำหนด + ≤90 วัน)",n:active,color:"var(--warn)"},...BUCKETS.map(b=>({...b,n:c[b.k]||0})),{k:"all",label:"ทั้งหมด",n:rows.length,color:"var(--muted)"}];
+  /* แท็บติดตามต่อสัญญา: แสดงสถานะถึง 60 วัน */
+  const active=(c.overdue||0)+(c.d30||0)+(c.d60||0);
+  const chips=[{k:"active",label:"ต้องติดตาม (เลยกำหนด + ≤60 วัน)",n:active,color:"var(--warn)"},...BUCKETS.filter(b=>RENEW_BUCKETS.includes(b.k)).map(b=>({...b,n:c[b.k]||0}))];
   let html=chips.map(ch=>`<button type="button" class="chipbtn" aria-pressed="${S.bucket===ch.k&&S.renewMonth===null}" data-k="${ch.k}"><span class="dot" style="background:${ch.color}"></span>${ch.label}<span class="num">${nf(ch.n)}</span></button>`).join("");
   if(S.renewMonth!==null) html+=`<button type="button" class="chipbtn" aria-pressed="true" data-k="clearMonth">${S.renewMonth==="overdue"?"เลยกำหนด":"ครบรอบเดือน "+mLabel(S.renewMonth)} ✕</button>`;
   $("bucketChips").innerHTML=html;
@@ -375,7 +379,6 @@ const COLS_RENEW=[
   {k:"days",label:"สถานะครบรอบ",cls:"nw",r:pillDays},
   {k:"fuS",label:"การติดตาม",cls:"nw",hl:1,r:fuCell},
   {k:"due",label:"WarrantDate (วันหมดอายุ)",cls:"nw",hl:1,r:dueCell},
-  ...YR_COLS.map((Y,i)=>({k:"y"+i,label:yrLabel(Y,i),cls:"nw ycol",hl:1,r:yearCell(Y)})),
   {label:"ID Station",...txt("code","nw")},{label:"Station",...txt("name","wide")},{label:"Brand",...txt("brand","nw")},
   {label:"Other (ผลตีตราครั้งที่แล้ว)",...txt("other","clamp")},
   {label:"Informer / InPhone",...telTxt("inform","wide")},{label:"Province",...txt("province","nw")},
@@ -419,8 +422,8 @@ function renderTables(rows){
   let ren=rows;
   if(S.renewMonth==="overdue") ren=rows.filter(r=>r.bucket==="overdue");
   else if(S.renewMonth!==null) ren=rows.filter(r=>r.due&&r.days>=0&&mKey(r.due)===S.renewMonth);
-  else if(S.bucket==="active") ren=rows.filter(r=>["overdue","d30","d60","d90"].includes(r.bucket));
-  else if(S.bucket!=="all") ren=rows.filter(r=>r.bucket===S.bucket);
+  else if(S.bucket==="active"||!RENEW_BUCKETS.includes(S.bucket)) ren=rows.filter(r=>RENEW_BUCKETS.includes(r.bucket));
+  else ren=rows.filter(r=>r.bucket===S.bucket);
   if(typeof renderFuKpi==="function") renderFuKpi(ren);
   if(S.fFu==="__due") ren=ren.filter(isDue);
   else if(S.fFu==="__touched") ren=ren.filter(r=>!!fuOf(r).s);
@@ -436,7 +439,7 @@ function renderTables(rows){
 }
 
 /* ===== รายงานต่ออายุรับรอง (v1.12.0): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 4 คอลัมน์ Job | Finish date | วันที่อายุรับรอง | วันที่ตรวจรับรองครั้งถัดไป =====
-   ตีตรา 1 ปีต่อครั้ง: Job ที่ปิดงาน (Finish date) ปีนี้ → Job + Finish date อยู่ในปีนี้
+   Job อยู่ในปีตามเลข Job (2 หลักแรก เช่น 2510D1973 → 2025)
    ทุกคอลัมน์อิง Job นั้นๆ (บรรทัดเดียวกัน ปีเดียวกับ Job): วันที่อายุรับรอง = วันที่ก่อนสุดในช่อง Problem · วันที่ตรวจรับรองครั้งถัดไป = วันหมดอายุรอบถัดไปจากช่อง Other ของ Job นี้ (อาจเป็นปีถัดไป)
    งานที่ยังไม่ปิดใช้ปีที่เปิดงาน · แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
 /* ติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
@@ -446,7 +449,12 @@ const isReportJob=r=>{const t=String(r.problem||"").replace(/\s+/g,""); return K
 const stKey=r=>String(r.code||"").trim()||("name:"+String(r.name||"").trim());
 /* วันตีตรา = Finish date (ปิดงาน) */
 const sealDate=r=>r.done?(r.fin||null):null;
-function jobYear(r){ const d=r.done?(r.fin||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
+/* ปีของ Job = 2 หลักแรกของเลข Job (YYMM + ประเภทงาน + เลขรัน เช่น 2510D1973 → ปี 2025)
+   ถ้าเลข Job ไม่ตรงรูปแบบ ใช้ปีของ Finish date / Open date แทน */
+function jobYear(r){
+  const m=String(r.job||"").trim().match(/^(\d{2})(\d{2})[A-Za-z]/);
+  if(m&&+m[2]>=1&&+m[2]<=12) return 2000+ +m[1];
+  const d=r.done?(r.fin||r.open):(r.open||r.fin); return d?d.getFullYear():null; }
 function stDueCls(r){ if(!r.due) return ""; if(fuOf(r).s==="renewed") return "renewed"; return r.days<0?"late":r.days<=90?"soon":"plan"; }
 const byD=(a,b)=>(a.d?+a.d:9e15)-(b.d?+b.d:9e15);
 function stYear(rs,Y){
@@ -781,7 +789,7 @@ function renderBulk(rows){
 const daysText = r => r.days === null ? "ไม่มีวันครบรอบ" : r.days < 0 ? `เลยมา ${-r.days} วัน` : r.days === 0 ? "ครบวันนี้" : `อีก ${r.days} วัน`;
 const fuLabel = r => (FU.find(o => o.k === (fuOf(r).s || "")) || FU[0]).label;
 const EXP_FU = [["การติดตาม", fuLabel, 16], ["นัดติดตามครั้งถัดไป", r => fuOf(r).next ? fmtD(toDate(fuOf(r).next)) : "", 14], ["ผู้รับผิดชอบ", r => asgName(fuOf(r).asg), 16], ["บันทึกการติดตาม", r => fuOf(r).note || "", 40], ["บันทึกล่าสุดโดย", r => fuOf(r).by ? (S.names[fuOf(r).by] || "") : "", 16], ["บันทึกล่าสุดเมื่อ", r => fuOf(r).at ? fmtDT(fuOf(r).at) : "", 17]];
-const EXP_RENEW = [["สถานะครบรอบ", daysText, 16], ["WarrantDate (วันหมดอายุ)", r => fmtD(r.due), 14], ...YR_COLS.map((Y,i)=>[yrLabel(Y,i), r => yearEvents(r,Y).map(e=>e.txt).join(" | "), 30]), ["ที่มาของวันหมดอายุ", r => r.dueSrc === "next" ? "ครบรอบครั้งถัดไป (ไม่พบใน Other)" : r.warrantSrc === "file" ? "ไฟล์" : r.due ? "ช่อง Other" : "", 22], ...EXP_FU,
+const EXP_RENEW = [["สถานะครบรอบ", daysText, 16], ["WarrantDate (วันหมดอายุ)", r => fmtD(r.due), 14], ["ที่มาของวันหมดอายุ", r => r.dueSrc === "next" ? "ครบรอบครั้งถัดไป (ไม่พบใน Other)" : r.warrantSrc === "file" ? "ไฟล์" : r.due ? "ช่อง Other" : "", 22], ...EXP_FU,
   ["ID Station", r => r.code, 11], ["Station", r => r.name, 36], ["Brand", r => r.brand, 9], ["Other", r => r.other, 50], ["Informer / InPhone", r => r.inform, 32], ["Province", r => r.province, 14], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Section", r => r.sup, 26]];
 const EXP_ALL = [["สถานะดำเนินการ", r => r.proc, 16], ["Work order", r => r.wo, 15], ["Job no.", r => r.job, 12], ["Open date", r => fmtD(r.open), 11], ["Finish date", r => fmtD(r.fin), 11], ["Brand", r => r.brand, 9], ["ID Station", r => r.code, 11], ["Station", r => r.name, 36], ["Informer / InPhone", r => r.inform, 32], ["Problem", r => r.problem, 40], ["Other", r => r.other, 50], ["Province", r => r.province, 14], ["Technician", r => r.user, 14], ["Section", r => r.sup, 26], ["SerialNumber", r => r.serial, 20], ["InstallDate", r => fmtD(r.install), 11], ["WarrantDate", r => fmtD(r.warrant), 11], ["สถานะครบรอบ", daysText, 16], ["การติดตาม", fuLabel, 16]];
 function exportXlsx(which){
