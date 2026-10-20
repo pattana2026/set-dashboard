@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<!-- SETS Seal Tracker v1.12.5 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
+<!-- SETS Seal Tracker v1.12.6 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
 <title>SETS Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=1.12.5">
+<link rel="stylesheet" href="styles.css?v=1.12.6">
 </head>
 <body>
 <div class="wrap">
@@ -58,13 +58,13 @@
 
   <section class="charts">
     <div class="card">
+      <div class="hd"><h2>ครบรอบตรวจรับรองครั้งถัดไป 12 เดือนข้างหน้า (WarrantDate)</h2><div class="legend"><span><i style="background:var(--bad)"></i>ล่าช้า</span><span><i style="background:var(--warn)"></i>≤30 วัน</span><span><i style="background:var(--soon)"></i>31–90 วัน</span><span><i style="background:var(--ok)"></i>&gt;90 วัน</span></div></div>
+      <div id="chRenew"></div>
+    </div>
+    <div class="card">
       <div class="hd"><h2>งานเปิดรายเดือน (Open date)</h2>
         <div class="legend"><span><i style="background:var(--accent)"></i>ดำเนินการเรียบร้อย</span><span><i style="background:var(--pending)"></i>รอดำเนินการ</span></div></div>
       <div id="chMonth"></div>
-    </div>
-    <div class="card">
-      <div class="hd"><h2>ครบรอบตีตรา 12 เดือนข้างหน้า (WarrantDate)</h2><div class="legend"><span><i style="background:var(--bad)"></i>ล่าช้า</span><span><i style="background:var(--warn)"></i>≤30 วัน</span><span><i style="background:var(--soon)"></i>31–90 วัน</span><span><i style="background:var(--ok)"></i>&gt;90 วัน</span></div></div>
-      <div id="chRenew"></div>
     </div>
     <div class="card">
       <div class="hd"><h2>จำนวนงานตาม Brand</h2><span class="muted" style="font-size:12px">คลิกเพื่อกรอง</span></div>
@@ -127,7 +127,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.12.5"></script>
-<script src="app.js?v=1.12.5"></script>
+<script src="config.js?v=1.12.6"></script>
+<script src="app.js?v=1.12.6"></script>
 </body>
 </html>
