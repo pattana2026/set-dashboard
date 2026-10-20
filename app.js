@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.13.0", APP_RELEASED = "20/10/2026";
+const APP_VERSION = "1.13.1", APP_RELEASED = "20/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -506,7 +506,7 @@ function stFuCell(g){
   const r=g.track; if(!r) return `<span class="muted">—</span>`;
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
-  const meta=(tags?`<div class="futags">${tags}</div>`:"")+`<div class="fumeta">Job ${safe(r.job||r.wo)}</div>`;
+  const meta=tags?`<div class="futags">${tags}</div>`:"";
   const tip=`title="บันทึกกับ Job ${esc(r.job||r.wo)}${f.at?` · ล่าสุด ${esc(S.names[f.by]||"")} ${fmtDT(f.at)}`:""}${f.note?" · "+esc(f.note):""}"`;
   if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม" ${tip}>${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
   const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}" ${tip}>${o.label}</span>${meta}`;
@@ -546,15 +546,15 @@ function renderStations(rows){
 function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
-  const head=["การติดตาม","Job ที่ติดตาม","ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
+  const head=["การติดตาม","ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
     ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Finish date`,`${Y} วันที่อายุรับรอง`,`${Y} วันที่ตรวจรับรองครั้งถัดไป`])];
-  const aoa=[head,...gs.map(g=>[g.track?fuLabel(g.track):"",g.track?(g.track.job||g.track.wo||""):"",g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
+  const aoa=[head,...gs.map(g=>[g.track?fuLabel(g.track):"",g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
       jobs.map(it=>fmtD(it.r.certDate)).join("\n"),
       jobs.map(it=>it.r.due?`${fmtD(it.r.due)}${it.by?" (ต่ออายุแล้ว)":""}`:"").join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=head.map((h,i)=>({wch:i===3||i===5?34:i<9?13:(i-9)%4===3?26:14}));
+  ws["!cols"]=head.map((h,i)=>({wch:i===2||i===4?34:i<8?13:(i-8)%4===3?26:14}));
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"รายงานต่ออายุรับรอง");
   XLSX.writeFile(wb,`SETS-รายงานต่ออายุรับรอง-${isoD(new Date())}.xlsx`);
