@@ -250,3 +250,15 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .sttable th.sj{white-space:normal;line-height:1.25}
 .sttable th.sj{font-size:11px;min-width:54px}
 .sttable th.sj:first-child,.sttable th.sj.ysep{min-width:0}
+/* v1.12.7 KPI: ทุกใบโครงเดียวกัน (ป้าย | หัวข้อ 2 บรรทัด | ตัวเลข | คำอธิบาย) ให้แนวตรงกัน */
+.kpi{grid-template-rows:22px 2.7em auto 1fr;align-content:stretch;row-gap:6px;border-top-width:4px;border-top-color:var(--line)}
+.kpi .eye{font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 9px;justify-self:start;align-self:center;margin:0;line-height:20px}
+.kpi .eye.none{visibility:hidden}
+.kpi .l{font-size:15px;line-height:1.35;align-self:start;overflow:hidden}
+.kpi .v{align-self:center;line-height:1}
+.kpi .s{align-self:start;line-height:1.45}
+.kpi.yr .eye{margin-bottom:0}
+.kpi.ok{border-top-color:var(--ok)}.kpi.warn{border-top-color:var(--pending,var(--warn))}
+@media (max-width:640px){.kpi{grid-template-rows:20px 2.7em auto 1fr}.kpi .l{font-size:13.5px}}
+.top .updat{font-size:12.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums;margin-top:2px}
+.top .updat:empty{display:none}

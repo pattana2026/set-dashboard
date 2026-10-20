@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.12.6", APP_RELEASED = "20/10/2026";
+const APP_VERSION = "1.12.8", APP_RELEASED = "20/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -218,7 +218,7 @@ function render(){
   renderSrc(); renderKpis(rows); renderMonth(rows); renderRenewChart(rows); renderBrand(rows);
   renderChips(rows); renderTables(rows);
 }
-function renderSrc(){ $("srcinfo").innerHTML=""; }
+function renderSrc(){ $("srcinfo").innerHTML=""; const u=$("updAt"); if(u) u.textContent=S.src&&S.src.at?`อัปเดต ${fmtDT(S.src.at)}`:""; }
 /* กลุ่มปีของ WarrantDate: past = ปีที่ผ่านมา (ดำเนินการแล้ว), now = ปีนี้ (กำลังดำเนินการ), future = ปีถัดไป (จะดำเนินการ) */
 const CUR_Y=TODAY.getFullYear(), BE=y=>y; /* แสดงปี ค.ศ. */
 const yrGroup=r=>!r.due?null:r.due.getFullYear()<CUR_Y?"past":r.due.getFullYear()===CUR_Y?"now":"future";
@@ -231,9 +231,9 @@ function renderKpis(rows){
   const noDue=rows.filter(r=>!r.due).length;
   const yc=(k,cls,eye,label,list,sub)=>`<button type="button" class="kpi click yr ${cls}${S.fYr===k?" on":""}" data-yr="${k}" title="คลิกเพื่อกรองเฉพาะกลุ่มนี้"><span class="eye">${eye}</span><span class="l">${label}</span><span class="v">${nf(list.length)}</span><span class="s">${sub}</span></button>`;
   $("kpis").innerHTML=`
-    <div class="kpi">${S.src&&S.src.at?`<span class="upd">อัปเดต ${fmtDT(S.src.at)}</span>`:""}<span class="l">งานตีตราทั้งหมด</span><span class="v">${nf(rows.length)}</span><span class="s">ไม่มี WarrantDate ${nf(noDue)} งาน</span></div>
-    <div class="kpi ok"><span class="l">ดำเนินการเรียบร้อย</span><span class="v">${nf(done)}</span><span class="s">${pct}% ของงานทั้งหมด</span></div>
-    <button class="kpi warn click" type="button" data-proc="pending"><span class="l">รอดำเนินการ</span><span class="v">${nf(pend)}</span><span class="s">ยังไม่ได้ตีตรา / ยื่นคำขอ</span></button>
+    <div class="kpi"><span class="eye none"></span><span class="l">งานตีตราทั้งหมด</span><span class="v">${nf(rows.length)}</span><span class="s">ไม่มี WarrantDate ${nf(noDue)} งาน</span></div>
+    <div class="kpi ok"><span class="eye none"></span><span class="l">ดำเนินการเรียบร้อย</span><span class="v">${nf(done)}</span><span class="s">${pct}% ของงานทั้งหมด</span></div>
+    <button class="kpi warn click" type="button" data-proc="pending"><span class="eye none"></span><span class="l">รอดำเนินการ</span><span class="v">${nf(pend)}</span><span class="s">ยังไม่ได้ตีตรา / ยื่นคำขอ</span></button>
     ${yc("past","past","ดำเนินการแล้ว","ครบรอบปีที่ผ่านมา",g.past,g.past.length?byYear(g.past):`ก่อนปี ${BE(CUR_Y)}`)}
     ${yc("now","now","กำลังดำเนินการ",`ครบรอบปีนี้ · ${BE(CUR_Y)}`,g.now,`เลยกำหนด ${nf(nowOver)} · รอถึงกำหนด ${nf(nowLeft)}`)}
     ${yc("future","future","จะดำเนินการในอนาคต","ครบรอบปีถัดไป",g.future,g.future.length?byYear(g.future):`ตั้งแต่ปี ${BE(CUR_Y+1)}`)}`;
