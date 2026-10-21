@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.14.0", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.14.1", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -229,6 +229,7 @@ function renderKpis(rows){
   const byYear=list=>{const m={}; list.forEach(r=>{const y=BE(r.due.getFullYear()); m[y]=(m[y]||0)+1;}); return Object.keys(m).sort().map(y=>`${y}: ${nf(m[y])}`).join(" · ");};
   const nowOver=g.now.filter(r=>r.days<0).length, nowLeft=g.now.length-nowOver;
   const noDue=rows.filter(r=>!r.due).length;
+  const declN=stGroups(rows.filter(isReportJob)).filter(g=>g.track&&fuOf(g.track).s==="declined").length;
   const yc=(k,cls,eye,label,list,sub)=>`<button type="button" class="kpi click yr ${cls}${S.fYr===k?" on":""}" data-yr="${k}" title="คลิกเพื่อกรองเฉพาะกลุ่มนี้"><span class="eye">${eye}</span><span class="l">${label}</span><span class="v">${nf(list.length)}</span><span class="s">${sub}</span></button>`;
   $("kpis").innerHTML=`
     <div class="kpi"><span class="eye none"></span><span class="l">งานตีตราทั้งหมด</span><span class="v">${nf(rows.length)}</span><span class="s">ไม่มี WarrantDate ${nf(noDue)} งาน</span></div>
@@ -236,7 +237,9 @@ function renderKpis(rows){
     <button class="kpi warn click" type="button" data-proc="pending"><span class="eye none"></span><span class="l">รอดำเนินการ</span><span class="v">${nf(pend)}</span><span class="s">ยังไม่ได้ตีตรา / ยื่นคำขอ</span></button>
     ${yc("past","past","ดำเนินการแล้ว","ครบรอบปีที่ผ่านมา",g.past,g.past.length?byYear(g.past):`ก่อนปี ${BE(CUR_Y)}`)}
     ${yc("now","now","กำลังดำเนินการ",`ครบรอบปีนี้ · ${BE(CUR_Y)}`,g.now,`เลยกำหนด ${nf(nowOver)} · รอถึงกำหนด ${nf(nowLeft)}`)}
-    ${yc("future","future","จะดำเนินการในอนาคต","ครบรอบปีถัดไป",g.future,g.future.length?byYear(g.future):`ตั้งแต่ปี ${BE(CUR_Y+1)}`)}`;
+    ${yc("future","future","จะดำเนินการในอนาคต","ครบรอบปีถัดไป",g.future,g.future.length?byYear(g.future):`ตั้งแต่ปี ${BE(CUR_Y+1)}`)}
+    <button class="kpi bad click${S.stDecl?" on":""}" type="button" id="kpiDecl" title="คลิกเพื่อดูรายชื่อสถานีในรายงานต่ออายุรับรอง"><span class="eye none"></span><span class="l">สถานีที่ไม่ต่อสัญญา</span><span class="v">${nf(declN)}</span><span class="s">บันทึกการติดตาม "ไม่ต่อสัญญา"</span></button>`;
+  $("kpiDecl").onclick=()=>{S.stDecl=!S.stDecl;S.page.st=0;setTab("st");render();$("panelSt").scrollIntoView({behavior:"smooth",block:"start"});};
   $("kpis").querySelectorAll("[data-yr]").forEach(b=>b.onclick=()=>{S.fYr=S.fYr===b.dataset.yr?null:b.dataset.yr;S.page={renew:0,all:0,st:0};render();});
   $("kpis").querySelector("[data-proc]").onclick=()=>{const p=S.all.find(r=>!r.done&&r.proc);if(p){$("fProc").value=p.proc;syncF();}setTab("all");render();$("panelAll").scrollIntoView({behavior:"smooth",block:"start"});};
 }
@@ -505,7 +508,8 @@ function stSortVal(g,k){ if(k==="fu"){const st=fuOf(g.track).s||""; return FU.fi
 /* คอลัมน์การติดตามของรายงาน: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วันข้างหน้า หรือเลยกำหนดแล้วแต่ยังไม่ได้ตีตรารอบใหม่
    (Job ล่าสุดของสถานี = ยังไม่ถูกต่ออายุ) — สถานีที่บันทึกการติดตามไว้แล้วยังแสดงเสมอ */
 const ST_FU_DAYS=60;
-const stFuShow=g=>!!(g.track&&((g.track.due&&g.track.days!==null&&g.track.days<=ST_FU_DAYS)||fuOf(g.track).s));
+const stIn60=g=>!!(g.track&&g.track.due&&g.track.days!==null&&g.track.days<=ST_FU_DAYS);
+const stFuShow=g=>!!(g.track&&(stIn60(g)||fuOf(g.track).s));
 function stFuCell(g){
   const r=g.track; if(!r||!stFuShow(g)) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
@@ -517,10 +521,15 @@ function stFuCell(g){
 }
 function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
-  const declN=gs.filter(g=>g.track&&fuOf(g.track).s==="declined").length;
-  $("stKpi").innerHTML=`<div class="fkrow"><button type="button" class="fk bad${S.stDecl?" on":""}" id="stDecl" title="คลิกเพื่อแสดงเฉพาะสถานีที่ไม่ต่อสัญญา"><span class="l">สถานีที่ไม่ต่อสัญญา</span><span class="v">${nf(declN)}</span><span class="s">${S.stDecl?"กำลังกรอง · คลิกเพื่อดูทั้งหมด":"คลิกเพื่อกรอง"}</span></button></div>`;
-  $("stDecl").onclick=()=>{S.stDecl=!S.stDecl;S.page.st=0;render();};
+  const n60=gs.filter(stIn60).length, nAll=gs.length;
+  /* ค่าเริ่มต้น: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วัน / เลยกำหนดแล้วยังไม่ตีตรารอบใหม่ — กดปุ่มเพื่อแสดงทั้งหมด */
+  let chips=`<button type="button" class="chipbtn" aria-pressed="${!S.stAll&&!S.stDecl}" data-k="60"><span class="dot" style="background:var(--warn)"></span>ต้องติดตาม (เลยกำหนด + ≤${ST_FU_DAYS} วัน)<span class="num">${nf(n60)}</span></button>`
+    +`<button type="button" class="chipbtn" aria-pressed="${S.stAll&&!S.stDecl}" data-k="all"><span class="dot" style="background:var(--muted)"></span>ทั้งหมด (รวมเกิน ${ST_FU_DAYS} วัน)<span class="num">${nf(nAll)}</span></button>`;
+  if(S.stDecl) chips+=`<button type="button" class="chipbtn" aria-pressed="true" data-k="decl">สถานีที่ไม่ต่อสัญญา ✕</button>`;
+  $("stChips").innerHTML=chips;
+  $("stChips").querySelectorAll(".chipbtn").forEach(b=>b.onclick=()=>{const k=b.dataset.k; if(k==="decl") S.stDecl=false; else {S.stAll=k==="all"; S.stDecl=false;} S.page.st=0; render();});
   if(S.stDecl) gs=gs.filter(g=>g.track&&fuOf(g.track).s==="declined");
+  else if(!S.stAll) gs=gs.filter(stIn60);
   gs.sort((a,b)=>{const x=stSortVal(a,s.k),y=stSortVal(b,s.k); if(x===null&&y===null)return 0; if(x===null)return 1; if(y===null)return -1;
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
