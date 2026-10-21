@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.15.5", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.15.7", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -505,8 +505,8 @@ function stGroups(rows){
   });
 }
 function stJobPart(it){
-  const r=it.r, f=fuOf(r), fo=f.s?FU.find(o=>o.k===f.s):null;
-  return `<b>${safe(r.job||r.wo)}</b>${fo?`<span class="sfu"><span class="pill p-${fo.cls}">${fo.label}</span></span>`:""}`;
+  const r=it.r;
+  return `<b>${safe(r.job||r.wo)}</b>`;
 }
 const fmtS=d=>d?String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+String(d.getFullYear()%100).padStart(2,"0"):"";
 function stSealPart(it){
@@ -525,14 +525,17 @@ function stWarrPart(it){
   return `<span class="yev ${c}" title="Job ${esc(r.job||r.wo)} · ${fmtD(r.due)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtS(r.due)}</span>`;
 }
 const ST_COLS=[{k:"fu",label:"การติดตาม"},{k:"code",label:"ID Station"},{k:"name",label:"Station / Brand"},{k:"inform",label:"Informer / InPhone"},{k:"near",label:"ครบรอบใกล้สุด"}];
-function stSortVal(g,k){ if(k==="fu"){const st=fuOf(g.track).s||""; return FU.findIndex(o=>o.k===st);} if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
+function stSortVal(g,k){ if(k==="fu"){const r=stFuJob(g); if(!r) return null; const st=fuOf(r).s||""; return FU.findIndex(o=>o.k===st);} if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
 /* คอลัมน์การติดตามของรายงาน: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วันข้างหน้า หรือเลยกำหนดแล้วแต่ยังไม่ได้ตีตรารอบใหม่
    (Job ล่าสุดของสถานี = ยังไม่ถูกต่ออายุ) — สถานีที่บันทึกการติดตามไว้แล้วยังแสดงเสมอ */
 const ST_FU_DAYS=60;
 const stIn60=g=>!!(g.track&&g.track.due&&g.track.days!==null&&g.track.days<=ST_FU_DAYS);
 const stFuShow=g=>!!(g.track&&(stIn60(g)||fuOf(g.track).s));
+/* ใช้เงื่อนไขเดียวกับแท็บติดตามต่อสัญญารอบใหม่: Job ที่ยังไม่ได้ตีตรารอบใหม่ ตั้งแต่เลยกำหนดจนถึงครบรอบภายใน 60 วัน
+   และบันทึกกับ Job เดียวกับที่แสดงในแท็บนั้น ผลจึงตรงกันทั้ง 2 แท็บ */
+const stFuJob=g=>(g.near&&!g.near.superseded&&RENEW_BUCKETS.includes(g.near.bucket))?g.near:null;
 function stFuCell(g){
-  const r=g.track; if(!r) return "";
+  const r=stFuJob(g); if(!r) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
   const meta=tags?`<div class="futags">${tags}</div>`:"";
@@ -577,7 +580,7 @@ function exportStations(){
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
   const head=["การติดตาม","ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
     ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Finish date`,`${Y} วันที่อายุรับรอง`,`${Y} วันที่ตรวจรับรองครั้งถัดไป`])];
-  const aoa=[head,...gs.map(g=>[g.track?fuLabel(g.track):"",g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
+  const aoa=[head,...gs.map(g=>[stFuJob(g)?fuLabel(stFuJob(g)):"",g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
       jobs.map(it=>fmtD(it.r.certDate)).join("\n"),
