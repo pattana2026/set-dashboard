@@ -232,7 +232,7 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .sttable th.y2{background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
 .sttable .ysep{border-left:3px solid var(--line)}
 .sttable td.num{text-align:center;font-weight:700}
-.sttable td.stname{min-width:110px;max-width:130px;overflow-wrap:anywhere}
+.sttable td.stname{min-width:100px;max-width:120px;overflow-wrap:anywhere}
 .sttable td.stinf{min-width:96px;max-width:108px;font-size:12px;word-break:break-word}
 .sttable td.sjc,.sttable td.sdc{white-space:nowrap;font-size:12px}
 .sent{height:24px;line-height:20px;white-space:nowrap;padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer;overflow:hidden}
@@ -262,7 +262,7 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 @media (max-width:640px){.kpi{grid-template-rows:20px 2.7em auto 1fr}.kpi .l{font-size:13.5px}}
 .top .updat{font-size:12.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums;margin-top:2px}
 .top .updat:empty{display:none}
-.sttable td.stfu{min-width:104px}.sttable td.stfu .fusel{max-width:104px;font-size:11.5px;padding:4px 4px}.sttable td.stfu .fumeta{font-size:11px}
+.sttable td.stfu{min-width:92px}.sttable td.stfu .fusel{max-width:92px;font-size:11.5px;padding:4px 4px}.sttable td.stfu .fumeta{font-size:11px}
 .sttable .stsub{font-size:11.5px;color:var(--muted);margin-top:2px}
 /* v1.14.0 ช่องค้นหาอยู่แถวเดียวกับแท็บ */
 .tabs{align-items:center}

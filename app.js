@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.15.4", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.15.5", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -524,7 +524,7 @@ function stWarrPart(it){
   const tip=c==="renewed"?"ตกลงต่อสัญญาแล้ว":r.days<0?`เลยกำหนด ${nf(-r.days)} วัน`:`อีก ${nf(r.days)} วัน`;
   return `<span class="yev ${c}" title="Job ${esc(r.job||r.wo)} · ${fmtD(r.due)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtS(r.due)}</span>`;
 }
-const ST_COLS=[{k:"code",label:"ID Station"},{k:"name",label:"Station / Brand"},{k:"inform",label:"Informer / InPhone"},{k:"near",label:"ครบรอบใกล้สุด"}];
+const ST_COLS=[{k:"fu",label:"การติดตาม"},{k:"code",label:"ID Station"},{k:"name",label:"Station / Brand"},{k:"inform",label:"Informer / InPhone"},{k:"near",label:"ครบรอบใกล้สุด"}];
 function stSortVal(g,k){ if(k==="fu"){const st=fuOf(g.track).s||""; return FU.findIndex(o=>o.k===st);} if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
 /* คอลัมน์การติดตามของรายงาน: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วันข้างหน้า หรือเลยกำหนดแล้วแต่ยังไม่ได้ตีตรารอบใหม่
    (Job ล่าสุดของสถานี = ยังไม่ถูกต่ออายุ) — สถานีที่บันทึกการติดตามไว้แล้วยังแสดงเสมอ */
@@ -532,7 +532,7 @@ const ST_FU_DAYS=60;
 const stIn60=g=>!!(g.track&&g.track.due&&g.track.days!==null&&g.track.days<=ST_FU_DAYS);
 const stFuShow=g=>!!(g.track&&(stIn60(g)||fuOf(g.track).s));
 function stFuCell(g){
-  const r=g.track; if(!r||!stFuShow(g)) return "";
+  const r=g.track; if(!r) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
   const meta=tags?`<div class="futags">${tags}</div>`:"";
@@ -558,11 +558,12 @@ function renderStations(rows){
   const ent=(L,fn)=>L.map(it=>`<div class="sent" data-i="${S.all.indexOf(it.r)}" title="คลิกเพื่อดูรายละเอียด / บันทึกการติดตาม">${fn(it)}</div>`).join("");
   const body=slice.map(g=>{
     const cells=g.years.map(({jobs})=>`<td class="ysep sjc">${ent(jobs,stJobPart)}</td><td class="vsep sdc">${ent(jobs,stSealPart)}</td><td class="vsep sdc">${ent(jobs,stAgePart)}</td><td class="vsep sdc">${ent(jobs,stWarrPart)}</td>`).join("");
-    return `<tr><td class="nw"><b>${safe(g.code)}</b><div class="stsub">${nf(g.n)} Job</div></td><td class="stname">${safe(g.name)}<div class="stsub">${safe(g.brand)}</div></td><td class="stinf">${telify(g.inform)}</td><td class="nw">${nearCell(g)}</td>${cells}</tr>`;
+    return `<tr><td class="stfu">${stFuCell(g)}</td><td class="nw"><b>${safe(g.code)}</b><div class="stsub">${nf(g.n)} Job</div></td><td class="stname">${safe(g.name)}<div class="stsub">${safe(g.brand)}</div></td><td class="stinf">${telify(g.inform)}</td><td class="nw">${nearCell(g)}</td>${cells}</tr>`;
   }).join("");
   t.innerHTML=`<thead><tr>${head0}</tr><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body||`<tr><td colspan="${ST_COLS.length+YR_COLS.length*NC}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
   t.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;s.d=s.k===k?-s.d:1;s.k=k;render();});
   requestAnimationFrame(()=>{const tr=t.querySelectorAll("thead tr");if(tr.length>2&&tr[0].offsetHeight){t.style.setProperty("--sth1",tr[0].offsetHeight+"px");t.style.setProperty("--sth2",(tr[0].offsetHeight+tr[1].offsetHeight)+"px");}});
+  t.querySelectorAll(".fusel").forEach(sel=>sel.onchange=()=>saveFU(sel.dataset.key,{s:sel.value}));
   t.querySelectorAll(".sent").forEach(el=>{el.onclick=()=>{if(window.getSelection().toString())return;openDrawer(S.all[+el.dataset.i]);};
     el.onmouseenter=()=>t.querySelectorAll(`.sent[data-i="${el.dataset.i}"]`).forEach(x=>x.classList.add("hov"));
     el.onmouseleave=()=>t.querySelectorAll(".sent.hov").forEach(x=>x.classList.remove("hov"));});
@@ -574,15 +575,15 @@ function renderStations(rows){
 function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
-  const head=["ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
+  const head=["การติดตาม","ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
     ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Finish date`,`${Y} วันที่อายุรับรอง`,`${Y} วันที่ตรวจรับรองครั้งถัดไป`])];
-  const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
+  const aoa=[head,...gs.map(g=>[g.track?fuLabel(g.track):"",g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
       jobs.map(it=>fmtD(it.r.certDate)).join("\n"),
       jobs.map(it=>it.r.due?`${fmtD(it.r.due)}${it.by?" (ต่ออายุแล้ว)":""}`:"").join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%4===3?26:14}));
+  ws["!cols"]=head.map((h,i)=>({wch:i===2||i===4?34:i<8?13:(i-8)%4===3?26:14}));
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"รายงานต่ออายุรับรอง");
   XLSX.writeFile(wb,`SETS-รายงานต่ออายุรับรอง-${isoD(new Date())}.xlsx`);
