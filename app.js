@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.17.0", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.17.1", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -170,7 +170,7 @@ function parseAOA(aoa){
 }
 
 /* ---------- state ---------- */
-const S={all:[],src:null,tab:"renew",bucket:"active",renewMonth:null,fu:{},names:{},fFu:"any",fAsg:"any",profiles:[],renRows:[],allRows:[],fuV2:false,loadedV:null,
+const S={kf:{st:"any",all:"any"},all:[],src:null,tab:"renew",bucket:"active",renewMonth:null,fu:{},names:{},fFu:"any",fAsg:"any",profiles:[],renRows:[],allRows:[],fuV2:false,loadedV:null,
   f:{q:"",brand:"",proc:"",sup:"",user:"",month:""},
   sort:{renew:{k:"due",d:1},all:{k:"open",d:-1},st:{k:"near",d:1}}, page:{renew:0,all:0,st:0}};
 const PAGE=50;
@@ -435,7 +435,7 @@ function renderTables(rows){
   else if(S.renewMonth!==null) ren=base.filter(r=>r.due&&r.days>=0&&mKey(r.due)===S.renewMonth);
   else if(S.bucket==="far") ren=base.filter(r=>RENEW_FAR.includes(r.bucket));
   else ren=base.filter(r=>RENEW_BUCKETS.includes(r.bucket));
-  if(typeof renderFuKpi==="function") renderFuKpi(ren);
+  S.kpiRenew=ren;
   if(S.fFu==="__due") ren=ren.filter(isDue);
   else if(S.fFu==="__touched") ren=ren.filter(r=>!!fuOf(r).s);
   else if(S.fFu!=="any") ren=ren.filter(r=>(fuOf(r).s||"")===S.fFu);
@@ -457,10 +457,19 @@ function renderTables(rows){
     S.renEmpty=`ไม่พบในรายการต้องติดตาม — พบ ${nf(rows.length)} Job ที่แท็บงานตีตราทั้งหมด`+(why.length?` (${why.join(" · ")})`:"");
   }
   S.renRows=ren; S.allRows=rows;
-  $("cRenew").textContent=nf(ren.length); $("cAll").textContent=nf(rows.length);
+  S.kpiAll=rows; const allShown=S.kf.all!=="any"?rows.filter(r=>fuMatch(r,S.kf.all)):rows;
+  $("cRenew").textContent=nf(ren.length); $("cAll").textContent=nf(allShown.length);
   if(typeof renderBulk==="function") renderBulk(ren);
-  renderTable("renew",ren,COLS_RENEW); renderTable("all",rows,COLS_ALL);
+  renderTable("renew",ren,COLS_RENEW); renderTable("all",allShown,COLS_ALL);
   renderStations(rows);
+  renderKpiForTab();
+}
+/* KPI ผลการติดตาม — แต่ละแท็บนับจากข้อมูลของตัวเอง และคลิกแล้วกรองในแท็บนั้น */
+function fuMatch(r,k){ if(k==="__due") return isDue(r); if(k==="__touched") return !!fuOf(r).s; return (fuOf(r).s||"")===k; }
+function renderKpiForTab(){
+  if(S.tab==="st") renderFuKpi(S.kpiSt||[], g=>stFuJob(g), "st", "สถานี");
+  else if(S.tab==="all") renderFuKpi(S.kpiAll||[], r=>r, "all", "Job");
+  else renderFuKpi(S.kpiRenew||[], r=>r, "renew", "รายการ");
 }
 
 /* ===== รายงานต่ออายุรับรอง (v1.12.0): 1 แถว = 1 สถานี · แต่ละปี (ค.ศ.) มี 4 คอลัมน์ Job | Finish date | วันที่อายุรับรอง | วันที่ตรวจรับรองครั้งถัดไป =====
@@ -563,6 +572,8 @@ function stFuCell(g){
 }
 function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
+  S.kpiSt=gs;
+  if(S.kf.st!=="any") gs=gs.filter(g=>{const r=stFuJob(g); return r&&fuMatch(r,S.kf.st);});
   gs.sort((a,b)=>{const x=stSortVal(a,s.k),y=stSortVal(b,s.k); if(x===null&&y===null)return 0; if(x===null)return 1; if(y===null)return -1;
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
@@ -863,19 +874,27 @@ function buildAsgOptions(){
   $("fAsg").value = [...$("fAsg").options].some(o => o.value === cur) ? cur : "any"; S.fAsg = $("fAsg").value;
 }
 $("fAsg").onchange = e => { S.fAsg = e.target.value; S.page.renew = 0; render(); };
-function renderFuKpi(base){
+function renderFuKpi(items, getR, tab, unit){
+  const cur = tab === "renew" ? S.fFu : S.kf[tab];
+  const base = items.map(getR).filter(Boolean);
   const c = {total: base.length, none: 0, contacted: 0, waiting: 0, renewed: 0, declined: 0, due: 0};
   base.forEach(r => { const f = fuOf(r); c[f.s || "none"]++; if (isDue(r)) c.due++; });
   const touched = c.total - c.none, pct = n => c.total ? Math.round(n / c.total * 100) + "%" : "0%";
-  const box = (k, label, v, sub, cls) => `<button type="button" class="fk${cls ? " " + cls : ""}${S.fFu === k ? " on" : ""}" data-k="${k}"><span class="l">${label}</span><span class="v">${nf(v)}</span><span class="s">${sub}</span></button>`;
-  $("fuKpi").innerHTML = `<div class="fkh">ผลการติดตาม <span class="muted">· กลุ่มที่แสดงอยู่ ${nf(c.total)} รายการ</span></div><div class="fkrow">`
+  const box = (k, label, v, sub, cls) => `<button type="button" class="fk${cls ? " " + cls : ""}${cur === k ? " on" : ""}" data-k="${k}"><span class="l">${label}</span><span class="v">${nf(v)}</span><span class="s">${sub}</span></button>`;
+  const scope = tab === "st" ? `${nf(c.total)} สถานีที่มีงานต้องติดตาม (จาก ${nf(items.length)} สถานีในรายงาน)` : tab === "all" ? `งานตีตราทั้งหมด ${nf(c.total)} Job` : `กลุ่มที่แสดงอยู่ ${nf(c.total)} ${unit}`;
+  $("fuKpi").innerHTML = `<div class="fkh">ผลการติดตาม <span class="muted">· ${scope}</span></div><div class="fkrow">`
     + box("__touched", "ติดต่อแล้ว", touched, `${pct(touched)} ของทั้งหมด`, "")
     + box("", "ยังไม่ติดต่อ", c.none, pct(c.none), "")
     + box("waiting", "รอลูกค้าตัดสินใจ", c.waiting, pct(c.waiting), "warn")
     + box("renewed", "ตกลงต่อสัญญา", c.renewed, pct(c.renewed), "ok")
     + box("declined", "ไม่ต่อสัญญา", c.declined, pct(c.declined), "bad")
     + box("__due", "ถึงกำหนดนัด", c.due, "วันนี้ / เลยนัด", c.due ? "bad" : "") + `</div>`;
-  $("fuKpi").querySelectorAll(".fk").forEach(b => b.onclick = () => { S.fFu = (S.fFu === b.dataset.k ? "any" : b.dataset.k); $("fFu").value = S.fFu; S.page.renew = 0; if (S.tab !== "renew") setTab("renew"); render(); });
+  $("fuKpi").querySelectorAll(".fk").forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    if (tab === "renew") { S.fFu = (S.fFu === k ? "any" : k); $("fFu").value = S.fFu; S.page.renew = 0; }
+    else { S.kf[tab] = (S.kf[tab] === k ? "any" : k); S.page[tab] = 0; }
+    render();
+  });
 }
 function renderBulk(rows){
   const el = $("bulkAsg");
@@ -913,8 +932,8 @@ function exportXlsx(which){
 }
 $("expRenew").onclick = () => exportXlsx("renew"); $("auditRenew").onclick = () => openAudit(); $("expAll").onclick = () => exportXlsx("all");
 $("fFu").onchange = e => { S.fFu = e.target.value; S.page.renew = 0; render(); };
-$("clearF").onclick = () => { S.f = {q:"",brand:"",proc:"",sup:"",user:"",month:""}; S.fYr = null; $("q").value = ""; ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).value = ""); S.renewMonth = null; S.bucket = "active"; S.fFu = "any"; $("fFu").value = "any"; S.fAsg = "any"; $("fAsg").value = "any"; S.page = {renew: 0, all: 0, st: 0}; render(); };
-$("tabRenew").onclick = () => setTab("renew"); $("tabAll").onclick = () => setTab("all"); $("tabSt").onclick = () => setTab("st");
+$("clearF").onclick = () => { S.f = {q:"",brand:"",proc:"",sup:"",user:"",month:""}; S.fYr = null; $("q").value = ""; ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).value = ""); S.renewMonth = null; S.bucket = "active"; S.fFu = "any"; $("fFu").value = "any"; S.fAsg = "any"; $("fAsg").value = "any"; S.kf = {st: "any", all: "any"}; S.page = {renew: 0, all: 0, st: 0}; render(); };
+$("tabRenew").onclick = () => { setTab("renew"); renderKpiForTab(); }; $("tabAll").onclick = () => { setTab("all"); renderKpiForTab(); }; $("tabSt").onclick = () => { setTab("st"); renderKpiForTab(); };
 $("expSt").onclick = () => exportStations();
 
 /* ---------- login / account ---------- */
