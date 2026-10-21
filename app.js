@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.15.1", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.15.4", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -410,7 +410,7 @@ function renderTable(which,rows,cols){
   const p=S.page[which], slice=rows.slice(p*PAGE,(p+1)*PAGE);
   const t=$(which==="renew"?"tRenew":"tAll");
   t.innerHTML=`<thead><tr>${cols.map(c=>`<th data-k="${c.k}" class="${c.hl?'hl':''}">${esc(c.label)}${s.k===c.k?`<span class="ar">${s.d>0?"▲":"▼"}</span>`:""}</th>`).join("")}</tr></thead>
-    <tbody>${slice.length?slice.map(r=>`<tr data-i="${S.all.indexOf(r)}">${cols.map(c=>`<td class="${c.cls||''}">${c.r(r)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${cols.length}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
+    <tbody>${slice.length?slice.map(r=>`<tr data-i="${S.all.indexOf(r)}">${cols.map(c=>`<td class="${c.cls||''}">${c.r(r)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${cols.length}" class="empty">${which==="renew"&&S.renEmpty?esc(S.renEmpty):"ไม่มีรายการตามตัวกรองนี้"}</td></tr>`}</tbody>`;
   t.querySelectorAll("th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;s.d=s.k===k?-s.d:1;s.k=k;render();});
   t.querySelectorAll("tbody tr[data-i]").forEach(tr=>tr.onclick=e=>{if(e.target.closest("select,button,textarea,a"))return;if(window.getSelection().toString())return;openDrawer(S.all[+tr.dataset.i]);});
   t.querySelectorAll(".fusel").forEach(sel=>sel.onchange=()=>saveFU(sel.dataset.key,{s:sel.value}));
@@ -440,6 +440,17 @@ function renderTables(rows){
   if(S.fAsg==="__me") ren=ren.filter(r=>fuOf(r).asg===UID);
   else if(S.fAsg==="__none") ren=ren.filter(r=>!fuOf(r).asg);
   else if(S.fAsg&&S.fAsg!=="any") ren=ren.filter(r=>fuOf(r).asg===S.fAsg);
+  /* ค้นหาแล้วไม่เจอในแท็บนี้ → บอกเหตุผล (ถูกตัวกรองการติดตาม / ตีตรารอบใหม่แล้ว / เกิน 60 วัน) */
+  S.renEmpty="";
+  if(!ren.length&&S.f.q.trim()&&rows.length){
+    const in60=base.filter(r=>RENEW_BUCKETS.includes(r.bucket)).length, sup=rows.filter(r=>r.superseded).length;
+    const why=[];
+    if(in60&&(S.fFu!=="any"||(S.fAsg&&S.fAsg!=="any"))) why.push(`ถูกตัวกรอง "การติดตาม / ผู้รับผิดชอบ" ซ่อนอยู่ ${nf(in60)} รายการ — กด "ล้างตัวกรอง"`);
+    else if(in60&&S.renewMonth!==null) why.push(`อยู่นอกเดือนที่เลือกจากกราฟ — กด "ล้างตัวกรอง"`);
+    if(sup) why.push(`สถานีตีตรารอบใหม่แล้ว ${nf(sup)} Job`);
+    const far=base.length-in60; if(far) why.push(`ครบรอบเกิน 60 วัน / ยังไม่มีวันครบรอบ ${nf(far)} Job`);
+    S.renEmpty=`ไม่พบในรายการต้องติดตาม — พบ ${nf(rows.length)} Job ที่แท็บงานตีตราทั้งหมด`+(why.length?` (${why.join(" · ")})`:"");
+  }
   S.renRows=ren; S.allRows=rows;
   $("cRenew").textContent=nf(ren.length); $("cAll").textContent=nf(rows.length);
   if(typeof renderBulk==="function") renderBulk(ren);
@@ -471,16 +482,20 @@ function stYear(rs,Y){
   return {jobs};
 }
 function stGroups(rows){
+  /* Job ที่ปิดงานแล้วทั้งหมดของแต่ละสถานี (รวม Job ที่ไม่ผ่านตัวกรองคำใน Problem) — ใช้ดูว่าสถานีตีตรารอบใหม่แล้วหรือยัง */
+  const allDone=new Map();
+  S.all.forEach(r=>{ if(!r.done||!r.fin) return; const k=stKey(r); if(!allDone.has(k)) allDone.set(k,[]); allDone.get(k).push(r); });
   const m=new Map();
   rows.forEach(r=>{const k=stKey(r); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);});
   return [...m.values()].map(rs=>{
     rs.sort((a,b)=>(+(a.open||0))-(+(b.open||0)));
     const last=rs[rs.length-1];
     /* ติดตามแบบทั้งสถานี: Job ที่มีการตีตรารอบใหม่ (Finish date ใหม่กว่า) แล้ว ถือว่าต่ออายุแล้ว */
-    const sealed=rs.filter(r=>r.done&&sealDate(r));
+    const sealed=allDone.get(stKey(last))||[];
     const sup=new Map();
-    sealed.forEach(r=>{const sd=+sealDate(r); const nx=sealed.filter(x=>+sealDate(x)>sd).sort((a,b)=>sealDate(a)-sealDate(b))[0]; if(nx) sup.set(r,nx);});
-    const open=rs.filter(r=>r.due&&!sup.has(r)&&fuOf(r).s!=="renewed"&&fuOf(r).s!=="declined");
+    rs.forEach(r=>{ if(!r.done||!r.fin) return; const sd=+r.fin; const nx=sealed.filter(x=>+x.fin>sd).sort((a,b)=>a.fin-b.fin)[0]; if(nx) sup.set(r,nx);});
+    /* ครบรอบใกล้สุด = วันหมดอายุของ Job ที่ยังไม่ถูกตีตรารอบใหม่ — นับเหมือนแท็บติดตามต่อสัญญา (ไม่ขึ้นกับผลการติดตาม) */
+    const open=rs.filter(r=>r.due&&!sup.has(r));
     const near=open.length?open.reduce((a,b)=>a.days<=b.days?a:b):null;
     /* Job ที่ใช้บันทึกการติดตามของสถานี = Job ล่าสุดที่ตีตราแล้วและมีวันหมดอายุ (ไม่ถูกต่ออายุโดย Job ใหม่) */
     const cand=rs.filter(r=>r.done&&r.due&&!sup.has(r));
@@ -831,7 +846,7 @@ function exportXlsx(which){
 }
 $("expRenew").onclick = () => exportXlsx("renew"); $("expAll").onclick = () => exportXlsx("all");
 $("fFu").onchange = e => { S.fFu = e.target.value; S.page.renew = 0; render(); };
-$("clearF").onclick = () => { S.f = {q:"",brand:"",proc:"",sup:"",user:"",month:""}; S.fYr = null; $("q").value = ""; ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).value = ""); S.renewMonth = null; S.page = {renew: 0, all: 0, st: 0}; render(); };
+$("clearF").onclick = () => { S.f = {q:"",brand:"",proc:"",sup:"",user:"",month:""}; S.fYr = null; $("q").value = ""; ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).value = ""); S.renewMonth = null; S.bucket = "active"; S.fFu = "any"; $("fFu").value = "any"; S.fAsg = "any"; $("fAsg").value = "any"; S.page = {renew: 0, all: 0, st: 0}; render(); };
 $("tabRenew").onclick = () => setTab("renew"); $("tabAll").onclick = () => setTab("all"); $("tabSt").onclick = () => setTab("st");
 $("expSt").onclick = () => exportStations();
 
