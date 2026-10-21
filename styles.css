@@ -264,3 +264,7 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .top .updat:empty{display:none}
 .sttable td.stfu{min-width:104px}.sttable td.stfu .fusel{max-width:104px;font-size:11.5px;padding:4px 4px}.sttable td.stfu .fumeta{font-size:11px}
 .sttable .stsub{font-size:11.5px;color:var(--muted);margin-top:2px}
+/* v1.14.0 ช่องค้นหาอยู่แถวเดียวกับแท็บ */
+.tabs{align-items:center}
+.tabs .tabsearch{margin-left:auto;flex:0 1 380px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:7px 12px;font:inherit;font-size:13.5px;margin-bottom:4px}
+@media (max-width:760px){.tabs .tabsearch{flex:1 1 100%;margin-left:0}}

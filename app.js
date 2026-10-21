@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.13.1", APP_RELEASED = "20/10/2026";
+const APP_VERSION = "1.14.0", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -502,8 +502,12 @@ function stWarrPart(it){
 }
 const ST_COLS=[{k:"fu",label:"การติดตาม"},{k:"code",label:"ID Station"},{k:"name",label:"Station / Brand"},{k:"inform",label:"Informer / InPhone"},{k:"near",label:"ครบรอบใกล้สุด"}];
 function stSortVal(g,k){ if(k==="fu"){const st=fuOf(g.track).s||""; return FU.findIndex(o=>o.k===st);} if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
+/* คอลัมน์การติดตามของรายงาน: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วันข้างหน้า หรือเลยกำหนดแล้วแต่ยังไม่ได้ตีตรารอบใหม่
+   (Job ล่าสุดของสถานี = ยังไม่ถูกต่ออายุ) — สถานีที่บันทึกการติดตามไว้แล้วยังแสดงเสมอ */
+const ST_FU_DAYS=60;
+const stFuShow=g=>!!(g.track&&((g.track.due&&g.track.days!==null&&g.track.days<=ST_FU_DAYS)||fuOf(g.track).s));
 function stFuCell(g){
-  const r=g.track; if(!r) return `<span class="muted">—</span>`;
+  const r=g.track; if(!r||!stFuShow(g)) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
   const meta=tags?`<div class="futags">${tags}</div>`:"";
@@ -513,6 +517,10 @@ function stFuCell(g){
 }
 function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
+  const declN=gs.filter(g=>g.track&&fuOf(g.track).s==="declined").length;
+  $("stKpi").innerHTML=`<div class="fkrow"><button type="button" class="fk bad${S.stDecl?" on":""}" id="stDecl" title="คลิกเพื่อแสดงเฉพาะสถานีที่ไม่ต่อสัญญา"><span class="l">สถานีที่ไม่ต่อสัญญา</span><span class="v">${nf(declN)}</span><span class="s">${S.stDecl?"กำลังกรอง · คลิกเพื่อดูทั้งหมด":"คลิกเพื่อกรอง"}</span></button></div>`;
+  $("stDecl").onclick=()=>{S.stDecl=!S.stDecl;S.page.st=0;render();};
+  if(S.stDecl) gs=gs.filter(g=>g.track&&fuOf(g.track).s==="declined");
   gs.sort((a,b)=>{const x=stSortVal(a,s.k),y=stSortVal(b,s.k); if(x===null&&y===null)return 0; if(x===null)return 1; if(y===null)return -1;
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);

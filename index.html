@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<!-- SETS Seal Tracker v1.13.1 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
+<!-- SETS Seal Tracker v1.14.0 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
 <title>SETS Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=1.13.1">
+<link rel="stylesheet" href="styles.css?v=1.14.0">
 </head>
 <body>
 <div class="wrap">
@@ -45,7 +45,6 @@
   </div>
 
   <section class="filters" aria-label="ตัวกรอง">
-    <input type="search" id="q" placeholder="ค้นหา ID Station, ชื่อสถานี, Work order, Job no., Serial, จังหวัด, ผู้แจ้ง…">
     <select id="fBrand" aria-label="Brand"></select>
     <select id="fProc" aria-label="สถานะดำเนินการ"></select>
     <select id="fSup" aria-label="Section"></select>
@@ -77,6 +76,7 @@
       <button class="tab" role="tab" id="tabRenew" aria-selected="true" type="button">ติดตามต่อสัญญารอบใหม่<span class="c" id="cRenew"></span></button>
       <button class="tab" role="tab" id="tabSt" aria-selected="false" type="button">รายงานต่ออายุรับรอง<span class="c" id="cSt"></span></button>
       <button class="tab" role="tab" id="tabAll" aria-selected="false" type="button">งานตีตราทั้งหมด<span class="c" id="cAll"></span></button>
+      <input type="search" id="q" class="tabsearch" placeholder="ค้นหา ID Station, ชื่อสถานี, Work order, Job no., จังหวัด, ผู้แจ้ง…" aria-label="ค้นหา">
     </div>
   </section>
 
@@ -90,6 +90,7 @@
     <div class="tablebox"><div class="tscroll"><table id="tRenew"></table></div><div class="pager" id="pRenew"></div></div>
   </section>
   <section class="panel" id="panelSt" hidden>
+    <div class="fukpi" id="stKpi"></div>
     <div class="furbar"><span class="muted" style="font-size:12.5px" id="stInfo"></span><button class="btn" id="expSt" type="button">⬇ Export Excel</button></div>
     <div class="tablebox"><div class="tscroll"><table id="tSt" class="sttable"></table></div><div class="pager" id="pSt"></div></div>
   </section>
@@ -127,7 +128,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.13.1"></script>
-<script src="app.js?v=1.13.1"></script>
+<script src="config.js?v=1.14.0"></script>
+<script src="app.js?v=1.14.0"></script>
 </body>
 </html>
