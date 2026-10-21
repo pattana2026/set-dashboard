@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.14.1", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.15.1", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -184,7 +184,7 @@ const nf=n=>n.toLocaleString("th-TH");
 
 function load(aoa,src){
   const {rows,missing}=parseAOA(aoa);
-  S.all=rows; S.src=src; S.page={renew:0,all:0,st:0}; S.renewMonth=null;
+  S.all=rows; S.src=src; markSuperseded(); S.page={renew:0,all:0,st:0}; S.renewMonth=null;
   buildFilterOptions(); render();
   return missing;
 }
@@ -215,8 +215,9 @@ function filtered(){
 function render(){
   for(const r of S.all){const f=r.fuKey&&S.fu[r.fuKey]; r.fuS=f&&f.s?FU.findIndex(o=>o.k===f.s):0;}
   const rows=filtered();
-  renderSrc(); renderKpis(rows); renderMonth(rows); renderRenewChart(rows); renderBrand(rows);
-  renderChips(rows); renderTables(rows);
+  const act=rows.filter(r=>!r.superseded); /* งานที่ยังไม่ได้ตีตรารอบใหม่ */
+  renderSrc(); renderKpis(rows); renderMonth(rows); renderRenewChart(act); renderBrand(rows);
+  renderChips(act); renderTables(rows);
 }
 function renderSrc(){ $("srcinfo").innerHTML=""; const u=$("updAt"); if(u) u.textContent=S.src&&S.src.at?`อัปเดต ${fmtDT(S.src.at)}`:""; }
 /* กลุ่มปีของ WarrantDate: past = ปีที่ผ่านมา (ดำเนินการแล้ว), now = ปีนี้ (กำลังดำเนินการ), future = ปีถัดไป (จะดำเนินการ) */
@@ -229,7 +230,6 @@ function renderKpis(rows){
   const byYear=list=>{const m={}; list.forEach(r=>{const y=BE(r.due.getFullYear()); m[y]=(m[y]||0)+1;}); return Object.keys(m).sort().map(y=>`${y}: ${nf(m[y])}`).join(" · ");};
   const nowOver=g.now.filter(r=>r.days<0).length, nowLeft=g.now.length-nowOver;
   const noDue=rows.filter(r=>!r.due).length;
-  const declN=stGroups(rows.filter(isReportJob)).filter(g=>g.track&&fuOf(g.track).s==="declined").length;
   const yc=(k,cls,eye,label,list,sub)=>`<button type="button" class="kpi click yr ${cls}${S.fYr===k?" on":""}" data-yr="${k}" title="คลิกเพื่อกรองเฉพาะกลุ่มนี้"><span class="eye">${eye}</span><span class="l">${label}</span><span class="v">${nf(list.length)}</span><span class="s">${sub}</span></button>`;
   $("kpis").innerHTML=`
     <div class="kpi"><span class="eye none"></span><span class="l">งานตีตราทั้งหมด</span><span class="v">${nf(rows.length)}</span><span class="s">ไม่มี WarrantDate ${nf(noDue)} งาน</span></div>
@@ -237,9 +237,7 @@ function renderKpis(rows){
     <button class="kpi warn click" type="button" data-proc="pending"><span class="eye none"></span><span class="l">รอดำเนินการ</span><span class="v">${nf(pend)}</span><span class="s">ยังไม่ได้ตีตรา / ยื่นคำขอ</span></button>
     ${yc("past","past","ดำเนินการแล้ว","ครบรอบปีที่ผ่านมา",g.past,g.past.length?byYear(g.past):`ก่อนปี ${BE(CUR_Y)}`)}
     ${yc("now","now","กำลังดำเนินการ",`ครบรอบปีนี้ · ${BE(CUR_Y)}`,g.now,`เลยกำหนด ${nf(nowOver)} · รอถึงกำหนด ${nf(nowLeft)}`)}
-    ${yc("future","future","จะดำเนินการในอนาคต","ครบรอบปีถัดไป",g.future,g.future.length?byYear(g.future):`ตั้งแต่ปี ${BE(CUR_Y+1)}`)}
-    <button class="kpi bad click${S.stDecl?" on":""}" type="button" id="kpiDecl" title="คลิกเพื่อดูรายชื่อสถานีในรายงานต่ออายุรับรอง"><span class="eye none"></span><span class="l">สถานีที่ไม่ต่อสัญญา</span><span class="v">${nf(declN)}</span><span class="s">บันทึกการติดตาม "ไม่ต่อสัญญา"</span></button>`;
-  $("kpiDecl").onclick=()=>{S.stDecl=!S.stDecl;S.page.st=0;setTab("st");render();$("panelSt").scrollIntoView({behavior:"smooth",block:"start"});};
+    ${yc("future","future","จะดำเนินการในอนาคต","ครบรอบปีถัดไป",g.future,g.future.length?byYear(g.future):`ตั้งแต่ปี ${BE(CUR_Y+1)}`)}`;
   $("kpis").querySelectorAll("[data-yr]").forEach(b=>b.onclick=()=>{S.fYr=S.fYr===b.dataset.yr?null:b.dataset.yr;S.page={renew:0,all:0,st:0};render();});
   $("kpis").querySelector("[data-proc]").onclick=()=>{const p=S.all.find(r=>!r.done&&r.proc);if(p){$("fProc").value=p.proc;syncF();}setTab("all");render();$("panelAll").scrollIntoView({behavior:"smooth",block:"start"});};
 }
@@ -302,7 +300,7 @@ function renderChips(rows){
   const c={}; rows.forEach(r=>c[r.bucket]=(c[r.bucket]||0)+1);
   /* แท็บติดตามต่อสัญญา: แสดงสถานะถึง 60 วัน */
   const active=(c.overdue||0)+(c.d30||0)+(c.d60||0);
-  const chips=[{k:"active",label:"ต้องติดตาม (เลยกำหนด + ≤60 วัน)",n:active,color:"var(--warn)"},...BUCKETS.filter(b=>RENEW_BUCKETS.includes(b.k)).map(b=>({...b,n:c[b.k]||0}))];
+  const chips=[{k:"active",label:"ต้องติดตาม (เลยกำหนด – ครบรอบภายใน 60 วัน)",n:active,color:"var(--warn)"}];
   let html=chips.map(ch=>`<button type="button" class="chipbtn" aria-pressed="${S.bucket===ch.k&&S.renewMonth===null}" data-k="${ch.k}"><span class="dot" style="background:${ch.color}"></span>${ch.label}<span class="num">${nf(ch.n)}</span></button>`).join("");
   if(S.renewMonth!==null) html+=`<button type="button" class="chipbtn" aria-pressed="true" data-k="clearMonth">${S.renewMonth==="overdue"?"เลยกำหนด":"ครบรอบเดือน "+mLabel(S.renewMonth)} ✕</button>`;
   $("bucketChips").innerHTML=html;
@@ -421,12 +419,20 @@ function renderTable(which,rows,cols){
     <span class="b"><button class="btn" type="button" data-d="-1" ${p===0?"disabled":""}>ก่อนหน้า</button><span class="muted" style="align-self:center">หน้า ${p+1}/${pages}</span><button class="btn" type="button" data-d="1" ${p>=pages-1?"disabled":""}>ถัดไป</button></span>`;
   pg.querySelectorAll("button").forEach(b=>b.onclick=()=>{S.page[which]+= +b.dataset.d;render();});
 }
+/* Job ที่สถานีตีตรารอบใหม่ไปแล้ว (มี Job ใหม่กว่าที่ปิดงานแล้วในสถานีเดียวกัน) = ดำเนินการแล้ว */
+function markSuperseded(){
+  const m=new Map();
+  S.all.forEach(r=>{r.superseded=false; if(!r.done||!r.fin) return; const k=String(r.code||"").trim()||("name:"+String(r.name||"").trim()); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);});
+  m.forEach(rs=>{ if(rs.length<2) return; const last=Math.max(...rs.map(r=>+r.fin)); rs.forEach(r=>{ if(+r.fin<last) r.superseded=true; }); });
+}
 function renderTables(rows){
-  let ren=rows;
-  if(S.renewMonth==="overdue") ren=rows.filter(r=>r.bucket==="overdue");
-  else if(S.renewMonth!==null) ren=rows.filter(r=>r.due&&r.days>=0&&mKey(r.due)===S.renewMonth);
-  else if(S.bucket==="active"||!RENEW_BUCKETS.includes(S.bucket)) ren=rows.filter(r=>RENEW_BUCKETS.includes(r.bucket));
-  else ren=rows.filter(r=>r.bucket===S.bucket);
+  /* ติดตามต่อสัญญารอบใหม่: เฉพาะงานที่ยังไม่ได้ดำเนินการ (ตัด Job ที่สถานีตีตรารอบใหม่แล้ว) จนถึงครบรอบไม่เกิน 60 วัน */
+  const base=rows.filter(r=>!r.superseded); let ren;
+  if(S.renewMonth==="overdue") ren=base.filter(r=>r.bucket==="overdue");
+  else if(S.renewMonth!==null) ren=base.filter(r=>r.due&&r.days>=0&&mKey(r.due)===S.renewMonth);
+  else if(S.bucket==="active"||!RENEW_BUCKETS.includes(S.bucket)) ren=base.filter(r=>RENEW_BUCKETS.includes(r.bucket));
+  else ren=base.filter(r=>r.bucket===S.bucket);
+  ren=ren.filter(r=>RENEW_BUCKETS.includes(r.bucket)); /* ไม่เกิน 60 วันเสมอ (รวมกรณีคลิกเดือนจากกราฟ) */
   if(typeof renderFuKpi==="function") renderFuKpi(ren);
   if(S.fFu==="__due") ren=ren.filter(isDue);
   else if(S.fFu==="__touched") ren=ren.filter(r=>!!fuOf(r).s);
@@ -503,7 +509,7 @@ function stWarrPart(it){
   const tip=c==="renewed"?"ตกลงต่อสัญญาแล้ว":r.days<0?`เลยกำหนด ${nf(-r.days)} วัน`:`อีก ${nf(r.days)} วัน`;
   return `<span class="yev ${c}" title="Job ${esc(r.job||r.wo)} · ${fmtD(r.due)} · ${tip}">${c==="renewed"?"✅ ":""}${fmtS(r.due)}</span>`;
 }
-const ST_COLS=[{k:"fu",label:"การติดตาม"},{k:"code",label:"ID Station"},{k:"name",label:"Station / Brand"},{k:"inform",label:"Informer / InPhone"},{k:"near",label:"ครบรอบใกล้สุด"}];
+const ST_COLS=[{k:"code",label:"ID Station"},{k:"name",label:"Station / Brand"},{k:"inform",label:"Informer / InPhone"},{k:"near",label:"ครบรอบใกล้สุด"}];
 function stSortVal(g,k){ if(k==="fu"){const st=fuOf(g.track).s||""; return FU.findIndex(o=>o.k===st);} if(k==="near") return g.near?g.near.days:null; if(k==="n") return g.n; const v=g[k]; return v===null||v===undefined||v===""?null:String(v); }
 /* คอลัมน์การติดตามของรายงาน: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วันข้างหน้า หรือเลยกำหนดแล้วแต่ยังไม่ได้ตีตรารอบใหม่
    (Job ล่าสุดของสถานี = ยังไม่ถูกต่ออายุ) — สถานีที่บันทึกการติดตามไว้แล้วยังแสดงเสมอ */
@@ -521,15 +527,6 @@ function stFuCell(g){
 }
 function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
-  const n60=gs.filter(stIn60).length, nAll=gs.length;
-  /* ค่าเริ่มต้น: แสดงเฉพาะสถานีที่ครบรอบภายใน 60 วัน / เลยกำหนดแล้วยังไม่ตีตรารอบใหม่ — กดปุ่มเพื่อแสดงทั้งหมด */
-  let chips=`<button type="button" class="chipbtn" aria-pressed="${!S.stAll&&!S.stDecl}" data-k="60"><span class="dot" style="background:var(--warn)"></span>ต้องติดตาม (เลยกำหนด + ≤${ST_FU_DAYS} วัน)<span class="num">${nf(n60)}</span></button>`
-    +`<button type="button" class="chipbtn" aria-pressed="${S.stAll&&!S.stDecl}" data-k="all"><span class="dot" style="background:var(--muted)"></span>ทั้งหมด (รวมเกิน ${ST_FU_DAYS} วัน)<span class="num">${nf(nAll)}</span></button>`;
-  if(S.stDecl) chips+=`<button type="button" class="chipbtn" aria-pressed="true" data-k="decl">สถานีที่ไม่ต่อสัญญา ✕</button>`;
-  $("stChips").innerHTML=chips;
-  $("stChips").querySelectorAll(".chipbtn").forEach(b=>b.onclick=()=>{const k=b.dataset.k; if(k==="decl") S.stDecl=false; else {S.stAll=k==="all"; S.stDecl=false;} S.page.st=0; render();});
-  if(S.stDecl) gs=gs.filter(g=>g.track&&fuOf(g.track).s==="declined");
-  else if(!S.stAll) gs=gs.filter(stIn60);
   gs.sort((a,b)=>{const x=stSortVal(a,s.k),y=stSortVal(b,s.k); if(x===null&&y===null)return 0; if(x===null)return 1; if(y===null)return -1;
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
@@ -546,12 +543,11 @@ function renderStations(rows){
   const ent=(L,fn)=>L.map(it=>`<div class="sent" data-i="${S.all.indexOf(it.r)}" title="คลิกเพื่อดูรายละเอียด / บันทึกการติดตาม">${fn(it)}</div>`).join("");
   const body=slice.map(g=>{
     const cells=g.years.map(({jobs})=>`<td class="ysep sjc">${ent(jobs,stJobPart)}</td><td class="vsep sdc">${ent(jobs,stSealPart)}</td><td class="vsep sdc">${ent(jobs,stAgePart)}</td><td class="vsep sdc">${ent(jobs,stWarrPart)}</td>`).join("");
-    return `<tr><td class="stfu">${stFuCell(g)}</td><td class="nw"><b>${safe(g.code)}</b><div class="stsub">${nf(g.n)} Job</div></td><td class="stname">${safe(g.name)}<div class="stsub">${safe(g.brand)}</div></td><td class="stinf">${telify(g.inform)}</td><td class="nw">${nearCell(g)}</td>${cells}</tr>`;
+    return `<tr><td class="nw"><b>${safe(g.code)}</b><div class="stsub">${nf(g.n)} Job</div></td><td class="stname">${safe(g.name)}<div class="stsub">${safe(g.brand)}</div></td><td class="stinf">${telify(g.inform)}</td><td class="nw">${nearCell(g)}</td>${cells}</tr>`;
   }).join("");
   t.innerHTML=`<thead><tr>${head0}</tr><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body||`<tr><td colspan="${ST_COLS.length+YR_COLS.length*NC}" class="empty">ไม่มีรายการตามตัวกรองนี้</td></tr>`}</tbody>`;
   t.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;s.d=s.k===k?-s.d:1;s.k=k;render();});
   requestAnimationFrame(()=>{const tr=t.querySelectorAll("thead tr");if(tr.length>2&&tr[0].offsetHeight){t.style.setProperty("--sth1",tr[0].offsetHeight+"px");t.style.setProperty("--sth2",(tr[0].offsetHeight+tr[1].offsetHeight)+"px");}});
-  t.querySelectorAll(".fusel").forEach(sel=>sel.onchange=()=>saveFU(sel.dataset.key,{s:sel.value}));
   t.querySelectorAll(".sent").forEach(el=>{el.onclick=()=>{if(window.getSelection().toString())return;openDrawer(S.all[+el.dataset.i]);};
     el.onmouseenter=()=>t.querySelectorAll(`.sent[data-i="${el.dataset.i}"]`).forEach(x=>x.classList.add("hov"));
     el.onmouseleave=()=>t.querySelectorAll(".sent.hov").forEach(x=>x.classList.remove("hov"));});
@@ -563,15 +559,15 @@ function renderStations(rows){
 function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
   const gs=S.stRows||[]; if(!gs.length){ banner("ไม่มีรายการให้ Export ตามตัวกรองนี้", "err"); return; }
-  const head=["การติดตาม","ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
+  const head=["ID Station","Station","Brand","Informer / InPhone","Job ทั้งหมด","ครบรอบใกล้สุด","WarrantDate ใกล้สุด",
     ...YR_COLS.flatMap(Y=>[`${Y} Job`,`${Y} Finish date`,`${Y} วันที่อายุรับรอง`,`${Y} วันที่ตรวจรับรองครั้งถัดไป`])];
-  const aoa=[head,...gs.map(g=>[g.track?fuLabel(g.track):"",g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
+  const aoa=[head,...gs.map(g=>[g.code,g.name,g.brand,g.inform,g.n,g.near?daysText(g.near):"",g.near?fmtD(g.near.due):"",
     ...g.years.flatMap(({jobs})=>[jobs.map(it=>it.r.job||it.r.wo||"").join("\n"),
       jobs.map(it=>it.kind==="pend"?"รอดำเนินการ":fmtD(it.d)).join("\n"),
       jobs.map(it=>fmtD(it.r.certDate)).join("\n"),
       jobs.map(it=>it.r.due?`${fmtD(it.r.due)}${it.by?" (ต่ออายุแล้ว)":""}`:"").join("\n")])].map(v=>v==null?"":String(v)))];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=head.map((h,i)=>({wch:i===2||i===4?34:i<8?13:(i-8)%4===3?26:14}));
+  ws["!cols"]=head.map((h,i)=>({wch:i===1||i===3?34:i<7?13:(i-7)%4===3?26:14}));
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"รายงานต่ออายุรับรอง");
   XLSX.writeFile(wb,`SETS-รายงานต่ออายุรับรอง-${isoD(new Date())}.xlsx`);
