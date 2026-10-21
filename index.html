@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<!-- SETS Seal Tracker v1.15.7 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
+<!-- SETS Seal Tracker v1.17.0 — เวลาออกเวอร์ชันใหม่ ให้แก้เลขเวอร์ชันตรงนี้ (?v=...) และใน app.js (APP_VERSION) ให้ตรงกัน -->
 <title>SETS Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=1.15.7">
+<link rel="stylesheet" href="styles.css?v=1.17.0">
 </head>
 <body>
 <div class="wrap">
@@ -80,12 +80,13 @@
     </div>
   </section>
 
+  <section class="fukpiwrap"><div class="fukpi" id="fuKpi"></div></section>
+
   <section class="panel" id="panelRenew">
-    <div class="fukpi" id="fuKpi"></div>
     <div class="chips" id="bucketChips"></div>
     <div class="furbar">
       <div class="furow"><select id="fFu" aria-label="กรองตามการติดตาม"></select><select id="fAsg" aria-label="กรองตามผู้รับผิดชอบ"></select></div>
-      <div class="furow"><span class="furow" id="bulkAsg"></span><button class="btn" id="expRenew" type="button">⬇ Export Excel</button></div>
+      <div class="furow"><button type="button" class="linkbtn" id="auditRenew">ดูที่มาของตัวเลข</button><span class="furow" id="bulkAsg"></span><button class="btn" id="expRenew" type="button">⬇ Export Excel</button></div>
     </div>
     <div class="tablebox"><div class="tscroll"><table id="tRenew"></table></div><div class="pager" id="pRenew"></div></div>
   </section>
@@ -127,7 +128,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.15.7"></script>
-<script src="app.js?v=1.15.7"></script>
+<script src="config.js?v=1.17.0"></script>
+<script src="app.js?v=1.17.0"></script>
 </body>
 </html>

@@ -271,3 +271,11 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--surface-2);padd
 .kpi.bad{border-top-color:var(--bad)}.kpi.bad.on{box-shadow:0 0 0 2px var(--fg)}
 @media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* v1.17.0 ที่มาของตัวเลข */
+.linkbtn{background:none;border:none;padding:0 4px;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline}
+table.audit{width:100%;border-collapse:collapse;font-size:13px}
+table.audit td,table.audit th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.audit td.num{text-align:right;white-space:nowrap;font-family:var(--f-mono)}
+table.audit tr.h td{font-weight:700;background:var(--surface-2)}
+.audhd{display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px}
+.audlist{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px}

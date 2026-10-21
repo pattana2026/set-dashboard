@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.15.7", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.17.0", APP_RELEASED = "21/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -43,6 +43,7 @@ function bucketOf(days){
   if(days<0) return "overdue"; if(days<=30) return "d30"; if(days<=60) return "d60"; if(days<=90) return "d90"; return "later";
 }
 const RENEW_BUCKETS = ["overdue","d30","d60"];
+const RENEW_FAR = ["d90","later"]; /* ครบรอบมากกว่า 60 วัน */
 const BUCKETS = [
   {k:"overdue",label:"เลยกำหนดแล้ว",color:"var(--bad)"},
   {k:"d30",label:"ภายใน 30 วัน",color:"var(--warn)"},
@@ -215,7 +216,7 @@ function filtered(){
 function render(){
   for(const r of S.all){const f=r.fuKey&&S.fu[r.fuKey]; r.fuS=f&&f.s?FU.findIndex(o=>o.k===f.s):0;}
   const rows=filtered();
-  const act=rows.filter(r=>!r.superseded); /* งานที่ยังไม่ได้ตีตรารอบใหม่ */
+  const act=rows.filter(r=>!r.superseded&&isReportJob(r)); /* งานทั้งสถานีที่ยังไม่ได้ตีตรารอบใหม่ */
   renderSrc(); renderKpis(rows); renderMonth(rows); renderRenewChart(act); renderBrand(rows);
   renderChips(act); renderTables(rows);
 }
@@ -286,7 +287,7 @@ function renderRenewChart(rows){
     items.push({label:mLab2(k),tipTitle:"ครบรอบ "+mLabel(k),key:k,title:`${mLabel(k)} · ${inM.length} รายการ`,sel:S.renewMonth===k,tip:[["var(--warn)","ภายใน 30 วัน",c("d30")],["var(--soon)","31–90 วัน",c("d60")+c("d90")],["var(--ok)","มากกว่า 90 วัน",c("later")]],
       parts:[{v:c("d30"),c:"var(--warn)"},{v:c("d60")+c("d90"),c:"var(--soon)"},{v:c("later"),c:"var(--ok)"}]});
   }
-  colChart($("chRenew"),items,{click:it=>{S.renewMonth=S.renewMonth===it.key?null:it.key;S.bucket="all";S.page.renew=0;setTab("renew");render();}});
+  colChart($("chRenew"),items,{click:it=>{S.renewMonth=S.renewMonth===it.key?null:it.key;S.bucket="active";S.page.renew=0;setTab("renew");render();}});
 }
 function renderBrand(rows){
   const b={}; rows.forEach(r=>{const k=r.brand||"(ไม่ระบุ)";b[k]=b[k]||{d:0,p:0};r.done?b[k].d++:b[k].p++;});
@@ -299,8 +300,9 @@ function renderBrand(rows){
 function renderChips(rows){
   const c={}; rows.forEach(r=>c[r.bucket]=(c[r.bucket]||0)+1);
   /* แท็บติดตามต่อสัญญา: แสดงสถานะถึง 60 วัน */
-  const active=(c.overdue||0)+(c.d30||0)+(c.d60||0);
-  const chips=[{k:"active",label:"ต้องติดตาม (เลยกำหนด – ครบรอบภายใน 60 วัน)",n:active,color:"var(--warn)"}];
+  const active=(c.overdue||0)+(c.d30||0)+(c.d60||0), far=(c.d90||0)+(c.later||0);
+  const chips=[{k:"active",label:"ต้องติดตาม (เลยกำหนด – ครบรอบภายใน 60 วัน)",n:active,color:"var(--warn)"},
+               {k:"far",label:"ครบรอบมากกว่า 60 วัน",n:far,color:"var(--ok)"}];
   let html=chips.map(ch=>`<button type="button" class="chipbtn" aria-pressed="${S.bucket===ch.k&&S.renewMonth===null}" data-k="${ch.k}"><span class="dot" style="background:${ch.color}"></span>${ch.label}<span class="num">${nf(ch.n)}</span></button>`).join("");
   if(S.renewMonth!==null) html+=`<button type="button" class="chipbtn" aria-pressed="true" data-k="clearMonth">${S.renewMonth==="overdue"?"เลยกำหนด":"ครบรอบเดือน "+mLabel(S.renewMonth)} ✕</button>`;
   $("bucketChips").innerHTML=html;
@@ -422,17 +424,17 @@ function renderTable(which,rows,cols){
 /* Job ที่สถานีตีตรารอบใหม่ไปแล้ว (มี Job ใหม่กว่าที่ปิดงานแล้วในสถานีเดียวกัน) = ดำเนินการแล้ว */
 function markSuperseded(){
   const m=new Map();
-  S.all.forEach(r=>{r.superseded=false; if(!r.done||!r.fin) return; const k=String(r.code||"").trim()||("name:"+String(r.name||"").trim()); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);});
+  /* นับเฉพาะงานทั้งสถานี — งานซ่อม / ตีตราบางหัว ไม่ถือว่าตีตรารอบใหม่ */
+  S.all.forEach(r=>{r.scope=scopeOf(r); r.superseded=false; if(!r.done||!r.fin||!r.scope.ok) return; const k=String(r.code||"").trim()||("name:"+String(r.name||"").trim()); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);});
   m.forEach(rs=>{ if(rs.length<2) return; const last=Math.max(...rs.map(r=>+r.fin)); rs.forEach(r=>{ if(+r.fin<last) r.superseded=true; }); });
 }
 function renderTables(rows){
   /* ติดตามต่อสัญญารอบใหม่: เฉพาะงานที่ยังไม่ได้ดำเนินการ (ตัด Job ที่สถานีตีตรารอบใหม่แล้ว) จนถึงครบรอบไม่เกิน 60 วัน */
-  const base=rows.filter(r=>!r.superseded); let ren;
+  const base=rows.filter(r=>!r.superseded&&isReportJob(r)); let ren;
   if(S.renewMonth==="overdue") ren=base.filter(r=>r.bucket==="overdue");
   else if(S.renewMonth!==null) ren=base.filter(r=>r.due&&r.days>=0&&mKey(r.due)===S.renewMonth);
-  else if(S.bucket==="active"||!RENEW_BUCKETS.includes(S.bucket)) ren=base.filter(r=>RENEW_BUCKETS.includes(r.bucket));
-  else ren=base.filter(r=>r.bucket===S.bucket);
-  ren=ren.filter(r=>RENEW_BUCKETS.includes(r.bucket)); /* ไม่เกิน 60 วันเสมอ (รวมกรณีคลิกเดือนจากกราฟ) */
+  else if(S.bucket==="far") ren=base.filter(r=>RENEW_FAR.includes(r.bucket));
+  else ren=base.filter(r=>RENEW_BUCKETS.includes(r.bucket));
   if(typeof renderFuKpi==="function") renderFuKpi(ren);
   if(S.fFu==="__due") ren=ren.filter(isDue);
   else if(S.fFu==="__touched") ren=ren.filter(r=>!!fuOf(r).s);
@@ -443,12 +445,15 @@ function renderTables(rows){
   /* ค้นหาแล้วไม่เจอในแท็บนี้ → บอกเหตุผล (ถูกตัวกรองการติดตาม / ตีตรารอบใหม่แล้ว / เกิน 60 วัน) */
   S.renEmpty="";
   if(!ren.length&&S.f.q.trim()&&rows.length){
-    const in60=base.filter(r=>RENEW_BUCKETS.includes(r.bucket)).length, sup=rows.filter(r=>r.superseded).length;
+    const grp=S.bucket==="far"?RENEW_FAR:RENEW_BUCKETS, other=S.bucket==="far"?RENEW_BUCKETS:RENEW_FAR;
+    const in60=base.filter(r=>grp.includes(r.bucket)).length, sup=rows.filter(r=>r.superseded).length, outN=rows.filter(r=>!isReportJob(r)).length;
     const why=[];
     if(in60&&(S.fFu!=="any"||(S.fAsg&&S.fAsg!=="any"))) why.push(`ถูกตัวกรอง "การติดตาม / ผู้รับผิดชอบ" ซ่อนอยู่ ${nf(in60)} รายการ — กด "ล้างตัวกรอง"`);
     else if(in60&&S.renewMonth!==null) why.push(`อยู่นอกเดือนที่เลือกจากกราฟ — กด "ล้างตัวกรอง"`);
     if(sup) why.push(`สถานีตีตรารอบใหม่แล้ว ${nf(sup)} Job`);
-    const far=base.length-in60; if(far) why.push(`ครบรอบเกิน 60 วัน / ยังไม่มีวันครบรอบ ${nf(far)} Job`);
+    if(outN) why.push(`ไม่ใช่งานทั้งสถานี ${nf(outN)} Job`);
+    const oth=base.filter(r=>other.includes(r.bucket)).length; if(oth) why.push(S.bucket==="far"?`อยู่ในปุ่ม "ต้องติดตาม" ${nf(oth)} Job`:`อยู่ในปุ่ม "ครบรอบมากกว่า 60 วัน" ${nf(oth)} Job`);
+    const nod=base.filter(r=>r.bucket==="none").length; if(nod) why.push(`ยังไม่มีวันครบรอบ ${nf(nod)} Job`);
     S.renEmpty=`ไม่พบในรายการต้องติดตาม — พบ ${nf(rows.length)} Job ที่แท็บงานตีตราทั้งหมด`+(why.length?` (${why.join(" · ")})`:"");
   }
   S.renRows=ren; S.allRows=rows;
@@ -462,10 +467,23 @@ function renderTables(rows){
    Job อยู่ในปีตามเลข Job (2 หลักแรก เช่น 2510D1973 → 2025)
    ทุกคอลัมน์อิง Job นั้นๆ (บรรทัดเดียวกัน ปีเดียวกับ Job): วันที่อายุรับรอง = วันที่ก่อนสุดในช่อง Problem · วันที่ตรวจรับรองครั้งถัดไป = วันหมดอายุรอบถัดไปจากช่อง Other ของ Job นี้ (อาจเป็นปีถัดไป)
    งานที่ยังไม่ปิดใช้ปีที่เปิดงาน · แสดงเฉพาะ Job ที่มีจริงในไฟล์ Excel / SMS */
-/* ติดตามแบบทั้งสถานี: เอาเฉพาะ Job ที่ช่อง Problem มีคำเหล่านี้ (ไม่สนช่องว่าง) — แก้/เพิ่มคำได้ที่นี่ */
+/* ===== งานทั้งสถานี (ใช้ทั้งแท็บติดตามต่อสัญญาและรายงานต่ออายุรับรอง) =====
+   นับเป็นงานทั้งสถานีเมื่อช่อง Problem (ไม่สนช่องว่าง) มีคำใน REPORT_KEYWORDS
+   หรือระบุจำนวนตั้งแต่ ST_MIN_HEADS หัวจ่าย / มือจ่าย / เครื่อง / มาตรวัด ขึ้นไป — แก้ค่าได้ที่นี่ */
 const REPORT_KEYWORDS=["ติดตั้งใหม่","ชั้นแรกทั้งสถานี","หมดอายุ"];
+const ST_MIN_HEADS=8;
 const KW_N=REPORT_KEYWORDS.map(k=>k.replace(/\s+/g,""));
-const isReportJob=r=>{const t=String(r.problem||"").replace(/\s+/g,""); return KW_N.some(k=>t.includes(k));};
+function headCount(t){
+  let n=0; for(const m of String(t).matchAll(/(\d+)(?=หัวจ่าย|หัว|มือจ่าย|มือ|เครื่อง|มาตรวัด|มาตร)/g)){ let v=+m[1]; if(v>200) v=v%100; /* ปีติดกับจำนวน เช่น 6936มือจ่าย */ if(v>n) n=v; }
+  return n;
+}
+function scopeOf(r){
+  const t=String(r.problem||"").replace(/\s+/g,"");
+  const kw=KW_N.find(k=>t.includes(k)); if(kw) return {ok:true,why:`คำว่า "${kw}"`};
+  const h=headCount(t); if(h>=ST_MIN_HEADS) return {ok:true,why:`ระบุ ${h} หัว`};
+  return {ok:false,why:h?`ระบุ ${h} หัว (น้อยกว่า ${ST_MIN_HEADS})`:"ไม่มีคำที่กำหนดและไม่ระบุจำนวนหัว"};
+}
+const isReportJob=r=>(r.scope||(r.scope=scopeOf(r))).ok;
 const stKey=r=>String(r.code||"").trim()||("name:"+String(r.name||"").trim());
 /* วันตีตรา = Finish date (ปิดงาน) */
 const sealDate=r=>r.done?(r.fin||null):null;
@@ -484,7 +502,7 @@ function stYear(rs,Y){
 function stGroups(rows){
   /* Job ที่ปิดงานแล้วทั้งหมดของแต่ละสถานี (รวม Job ที่ไม่ผ่านตัวกรองคำใน Problem) — ใช้ดูว่าสถานีตีตรารอบใหม่แล้วหรือยัง */
   const allDone=new Map();
-  S.all.forEach(r=>{ if(!r.done||!r.fin) return; const k=stKey(r); if(!allDone.has(k)) allDone.set(k,[]); allDone.get(k).push(r); });
+  S.all.forEach(r=>{ if(!r.done||!r.fin||!isReportJob(r)) return; const k=stKey(r); if(!allDone.has(k)) allDone.set(k,[]); allDone.get(k).push(r); });
   const m=new Map();
   rows.forEach(r=>{const k=stKey(r); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);});
   return [...m.values()].map(rs=>{
@@ -531,9 +549,9 @@ function stSortVal(g,k){ if(k==="fu"){const r=stFuJob(g); if(!r) return null; co
 const ST_FU_DAYS=60;
 const stIn60=g=>!!(g.track&&g.track.due&&g.track.days!==null&&g.track.days<=ST_FU_DAYS);
 const stFuShow=g=>!!(g.track&&(stIn60(g)||fuOf(g.track).s));
-/* ใช้เงื่อนไขเดียวกับแท็บติดตามต่อสัญญารอบใหม่: Job ที่ยังไม่ได้ตีตรารอบใหม่ ตั้งแต่เลยกำหนดจนถึงครบรอบภายใน 60 วัน
+/* ใช้เงื่อนไขเดียวกับแท็บติดตามต่อสัญญารอบใหม่: Job ที่ยังไม่ได้ตีตรารอบใหม่และมีวันครบรอบ (ทั้ง ≤60 วัน และมากกว่า 60 วัน)
    และบันทึกกับ Job เดียวกับที่แสดงในแท็บนั้น ผลจึงตรงกันทั้ง 2 แท็บ */
-const stFuJob=g=>(g.near&&!g.near.superseded&&RENEW_BUCKETS.includes(g.near.bucket))?g.near:null;
+const stFuJob=g=>(g.near&&!g.near.superseded&&g.near.due)?g.near:null;
 function stFuCell(g){
   const r=stFuJob(g); if(!r) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
@@ -549,7 +567,8 @@ function renderStations(rows){
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
   const multi=gs.filter(g=>g.n>1).length;
-  $("stInfo").innerHTML=`${nf(gs.length)} สถานี · มีมากกว่า 1 Job ${nf(multi)} สถานี · คลิกที่ Job / วันที่ เพื่อดูรายละเอียด / บันทึกการติดตาม<br><span class="kwnote">แสดงเฉพาะ Job ที่ช่อง Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} — ${nf(kept.length)} จาก ${nf(rows.length)} Job (ไม่แสดง ${nf(rows.length-kept.length)} Job)</span>`;
+  $("stInfo").innerHTML=`${nf(gs.length)} สถานี · มีมากกว่า 1 Job ${nf(multi)} สถานี · คลิกที่ Job / วันที่ เพื่อดูรายละเอียด / บันทึกการติดตาม<br><span class="kwnote">งานทั้งสถานี ${nf(kept.length)} จาก ${nf(rows.length)} Job (ไม่นับ ${nf(rows.length-kept.length)} Job) · <button type="button" class="linkbtn" data-audit="1">ดูที่มาของตัวเลข</button></span>`;
+  $("stInfo").querySelector("[data-audit]").onclick=openAudit;
   const pages=Math.max(1,Math.ceil(gs.length/PAGE)); S.page.st=Math.min(S.page.st||0,pages-1);
   const p=S.page.st, slice=gs.slice(p*PAGE,(p+1)*PAGE);
   const t=$("tSt"), NC=4;
@@ -574,6 +593,50 @@ function renderStations(rows){
   pg.innerHTML=`<span class="muted">แสดง ${gs.length?nf(p*PAGE+1):0}–${nf(Math.min((p+1)*PAGE,gs.length))} จาก ${nf(gs.length)} สถานี</span>
     <span class="b"><button class="btn" type="button" data-d="-1" ${p===0?"disabled":""}>ก่อนหน้า</button><span class="muted" style="align-self:center">หน้า ${p+1}/${pages}</span><button class="btn" type="button" data-d="1" ${p>=pages-1?"disabled":""}>ถัดไป</button></span>`;
   pg.querySelectorAll("button").forEach(b=>b.onclick=()=>{S.page.st+= +b.dataset.d;render();$("panelSt").scrollIntoView({block:"start"});});
+}
+/* ===== ที่มาของตัวเลข: กระทบยอดแท็บติดตามต่อสัญญากับรายงานต่ออายุรับรอง + รายการ Job ที่ไม่นับ ===== */
+function auditData(){
+  const rows=S.allRows||[], inS=rows.filter(isReportJob), out=rows.filter(r=>!isReportJob(r));
+  const byKw=inS.filter(r=>r.scope.why.startsWith("คำว่า")).length;
+  const gs=stGroups(inS);
+  const open=gs.filter(g=>g.rs.some(r=>!r.superseded&&r.due));
+  const rest=gs.filter(g=>!g.rs.some(r=>!r.superseded&&r.due));
+  const pend=rest.filter(g=>g.rs.every(r=>!r.done)).length, noW=rest.length-pend;
+  const base=inS.filter(r=>!r.superseded&&r.due);
+  const near=base.filter(r=>RENEW_BUCKETS.includes(r.bucket)).length, far=base.filter(r=>RENEW_FAR.includes(r.bucket)).length;
+  const sup=inS.filter(r=>r.superseded).length;
+  return {rows,inS,out,byKw,gs,open,pend,noW,near,far,sup,base};
+}
+function openAudit(){
+  const a=auditData();
+  const tr=(l,v,c)=>`<tr${c?` class="${c}"`:""}><td>${l}</td><td class="num">${v}</td></tr>`;
+  const html=`<p class="muted" style="margin:0 0 8px">ตัวเลขตามตัวกรองด้านบนที่ใช้อยู่ · เงื่อนไขงานทั้งสถานี: Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} หรือระบุตั้งแต่ ${ST_MIN_HEADS} หัว/มือจ่าย/เครื่องขึ้นไป</p>
+  <table class="audit"><tbody>
+   ${tr("งานตีตราทั้งหมด",nf(a.rows.length)+" Job","h")}
+   ${tr("&nbsp;&nbsp;นับเป็นงานทั้งสถานี (จากคำใน Problem)",nf(a.byKw)+" Job")}
+   ${tr("&nbsp;&nbsp;นับเป็นงานทั้งสถานี (จากจำนวนหัว)",nf(a.inS.length-a.byKw)+" Job")}
+   ${tr("&nbsp;&nbsp;ไม่นับ (รายการด้านล่าง)",nf(a.out.length)+" Job")}
+   ${tr("รายงานต่ออายุรับรอง",nf(a.gs.length)+" สถานี","h")}
+   ${tr("&nbsp;&nbsp;มีงานที่ต้องติดตาม (= แท็บติดตามต่อสัญญา)",nf(a.open.length)+" สถานี")}
+   ${tr("&nbsp;&nbsp;มีแต่งานรอดำเนินการ (ยังไม่มีวันครบรอบ)",nf(a.pend)+" สถานี")}
+   ${tr("&nbsp;&nbsp;ปิดงานแล้วแต่ช่อง Other ไม่มีวันหมดอายุ",nf(a.noW)+" สถานี")}
+   ${tr("ติดตามต่อสัญญารอบใหม่",nf(a.base.length)+" Job · "+nf(a.open.length)+" สถานี","h")}
+   ${tr("&nbsp;&nbsp;ต้องติดตาม (เลยกำหนด – ครบรอบภายใน 60 วัน)",nf(a.near)+" Job")}
+   ${tr("&nbsp;&nbsp;ครบรอบมากกว่า 60 วัน",nf(a.far)+" Job")}
+   ${tr("&nbsp;&nbsp;ไม่แสดง: สถานีตีตรารอบใหม่แล้ว",nf(a.sup)+" Job")}
+  </tbody></table>
+  <div class="audhd"><b>Job ที่ไม่นับเป็นงานทั้งสถานี (${nf(a.out.length)})</b><button type="button" class="btn" id="audExp">⬇ Export Excel</button></div>
+  <div class="audlist"><table class="audit"><thead><tr><th>Job no.</th><th>ID Station</th><th>Problem</th><th>เหตุผล</th></tr></thead><tbody>
+   ${a.out.map(r=>`<tr><td class="nw">${safe(r.job||r.wo)}</td><td class="nw">${safe(r.code)}</td><td>${safe(r.problem)}</td><td class="nw">${esc(r.scope.why)}</td></tr>`).join("")||'<tr><td colspan="4" class="muted">ไม่มี</td></tr>'}
+  </tbody></table></div>`;
+  openPanel("ที่มาของตัวเลข", html);
+  $("audExp").onclick=()=>{
+    if(typeof XLSX==="undefined") return;
+    const aoa=[["Job no.","Work order","ID Station","Station","Problem","เหตุผลที่ไม่นับ"],...a.out.map(r=>[r.job,r.wo,r.code,r.name,r.problem,r.scope.why].map(v=>v==null?"":String(v)))];
+    const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=[{wch:12},{wch:14},{wch:11},{wch:34},{wch:70},{wch:30}];
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"ไม่นับเป็นงานทั้งสถานี");
+    XLSX.writeFile(wb,`SETS-ที่มาของตัวเลข-${isoD(new Date())}.xlsx`);
+  };
 }
 function exportStations(){
   if (typeof XLSX === "undefined"){ banner("โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณารีเฟรชหน้า", "err"); return; }
@@ -812,7 +875,7 @@ function renderFuKpi(base){
     + box("renewed", "ตกลงต่อสัญญา", c.renewed, pct(c.renewed), "ok")
     + box("declined", "ไม่ต่อสัญญา", c.declined, pct(c.declined), "bad")
     + box("__due", "ถึงกำหนดนัด", c.due, "วันนี้ / เลยนัด", c.due ? "bad" : "") + `</div>`;
-  $("fuKpi").querySelectorAll(".fk").forEach(b => b.onclick = () => { S.fFu = (S.fFu === b.dataset.k ? "any" : b.dataset.k); $("fFu").value = S.fFu; S.page.renew = 0; render(); });
+  $("fuKpi").querySelectorAll(".fk").forEach(b => b.onclick = () => { S.fFu = (S.fFu === b.dataset.k ? "any" : b.dataset.k); $("fFu").value = S.fFu; S.page.renew = 0; if (S.tab !== "renew") setTab("renew"); render(); });
 }
 function renderBulk(rows){
   const el = $("bulkAsg");
@@ -848,7 +911,7 @@ function exportXlsx(which){
   XLSX.writeFile(wb, `SETS-${name}-${isoD(new Date())}.xlsx`);
   banner(`Export ${nf(rows.length)} รายการแล้ว`, "ok");
 }
-$("expRenew").onclick = () => exportXlsx("renew"); $("expAll").onclick = () => exportXlsx("all");
+$("expRenew").onclick = () => exportXlsx("renew"); $("auditRenew").onclick = () => openAudit(); $("expAll").onclick = () => exportXlsx("all");
 $("fFu").onchange = e => { S.fFu = e.target.value; S.page.renew = 0; render(); };
 $("clearF").onclick = () => { S.f = {q:"",brand:"",proc:"",sup:"",user:"",month:""}; S.fYr = null; $("q").value = ""; ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).value = ""); S.renewMonth = null; S.bucket = "active"; S.fFu = "any"; $("fFu").value = "any"; S.fAsg = "any"; $("fAsg").value = "any"; S.page = {renew: 0, all: 0, st: 0}; render(); };
 $("tabRenew").onclick = () => setTab("renew"); $("tabAll").onclick = () => setTab("all"); $("tabSt").onclick = () => setTab("st");
