@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.20.1", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.20.2", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -342,7 +342,7 @@ const dt=k=>({k,cls:"nw",r:r=>fmtD(r[k])});
 
 /* สถานะการติดตาม: ใช้ที่ทีมบันทึกไว้ก่อน ถ้ายังไม่บันทึกแต่สถานีมี Job No. ใหม่แล้ว (เปิดงานหลังงานรอบนี้ปิด แต่ยังไม่จบ)
    = ลูกค้าตกลงต่อสัญญาแล้ว → แสดง "ตกลงต่อสัญญา" อัตโนมัติ (ไม่บันทึกลงฐานข้อมูล) */
-const fuOf=r=>{ const f=(r.fuKey&&S.fu[r.fuKey])||null; if(f&&f.s) return f; if(r.renewJob||r.thisYear) return Object.assign({},f||{},{s:"renewed",auto:true,autoJob:r.renewJob||r}); return f||{}; };
+const fuOf=r=>{ const f=(r.fuKey&&S.fu[r.fuKey])||null; if(f&&f.s) return f; if(r.renewJob||r.thisYear||r.noDue) return Object.assign({},f||{},{s:"renewed",auto:true,autoJob:r.renewJob||r}); return f||{}; };
 const CLOSED=["renewed","declined"];
 function dueDays(f){ if(!f||!f.next||CLOSED.includes(f.s)) return null; const d=toDate(f.next); return d?Math.round((d-TODAY)/DAY):null; }
 const isDue=r=>{const d=dueDays(fuOf(r)); return d!==null&&d<=0;};
@@ -436,6 +436,8 @@ function markSuperseded(){
   m.forEach((rs,k)=>{ const ps=pend.get(k); if(!ps) return; rs.forEach(r=>{ if(r.superseded) return; const nx=ps.filter(x=>+x.open>+r.fin).sort((a,b)=>a.open-b.open)[0]; if(nx) r.renewJob=nx; }); });
   /* มี Job ปีนี้ (ปีตามเลข Job) ที่ตีตราเสร็จแล้ว = ต่อสัญญาแล้วสำหรับปีนี้ — ขึ้นปีใหม่จะกลับมาเป็น "ยังไม่ติดต่อ" เอง */
   S.all.forEach(r=>{ r.thisYear=!!(r.done&&r.scope.ok&&!r.superseded&&jobYear(r)===CUR_Y); });
+  /* มี Job No. แต่ยังไม่มีวันครบรอบ (งานยังไม่จบ หรือ Other ยังไม่มีวันหมดอายุ) = ลูกค้าต่อสัญญาแล้ว งานยังไม่จบ */
+  S.all.forEach(r=>{ r.noDue=!!(r.scope.ok&&!r.superseded&&!r.due&&String(r.job||"").trim()); });
 }
 function renderTables(rows){
   /* ติดตามต่อสัญญารอบใหม่: เฉพาะงานที่ยังไม่ได้ดำเนินการ (ตัด Job ที่สถานีตีตรารอบใหม่แล้ว) จนถึงครบรอบไม่เกิน 60 วัน */
@@ -572,7 +574,7 @@ const stIn60=g=>!!(g.track&&g.track.due&&g.track.days!==null&&g.track.days<=ST_F
 const stFuShow=g=>!!(g.track&&(stIn60(g)||fuOf(g.track).s));
 /* ใช้เงื่อนไขเดียวกับแท็บติดตามต่อสัญญารอบใหม่: Job ที่ยังไม่ได้ตีตรารอบใหม่และมีวันครบรอบ (ทั้ง ≤60 วัน และมากกว่า 60 วัน)
    และบันทึกกับ Job เดียวกับที่แสดงในแท็บนั้น ผลจึงตรงกันทั้ง 2 แท็บ */
-const stFuJob=g=>(g.near&&!g.near.superseded&&g.near.due)?g.near:null;
+const stFuJob=g=>{ if(g.near&&!g.near.superseded&&g.near.due) return g.near; const nd=g.rs.filter(r=>r.noDue); return nd.length?nd[nd.length-1]:null; };
 function stFuCell(g){
   const r=stFuJob(g); if(!r) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
@@ -650,6 +652,7 @@ function openAudit(){
    ${tr("&nbsp;&nbsp;ครบรอบมากกว่า 60 วัน",nf(a.far)+" Job")}
    ${tr("&nbsp;&nbsp;ไม่แสดง: สถานีตีตรารอบใหม่แล้ว",nf(a.sup)+" Job")}
    ${tr("&nbsp;&nbsp;ในจำนวนนี้: ตกลงต่อสัญญาอัตโนมัติ — มี Job No. ใหม่ที่ยังไม่จบ",nf(a.base.filter(r=>r.renewJob&&!(S.fu[r.fuKey]&&S.fu[r.fuKey].s)).length)+" Job")}
+   ${tr("รายงาน: สถานีที่ยังไม่มีวันครบรอบแต่มี Job No. (ตกลงต่อสัญญาอัตโนมัติ — งานยังไม่จบ)",nf(a.gs.filter(g=>!g.near&&g.rs.some(r=>r.noDue)).length)+" สถานี")}
    ${tr("&nbsp;&nbsp;ในจำนวนนี้: ตกลงต่อสัญญาอัตโนมัติ — ตีตราแล้วในปี "+CUR_Y,nf(a.base.filter(r=>!r.renewJob&&r.thisYear&&!(S.fu[r.fuKey]&&S.fu[r.fuKey].s)).length)+" Job")}
   </tbody></table>
   <div class="audhd"><b>Job ที่ไม่นับเป็นงานทั้งสถานี (${nf(a.out.length)})</b><button type="button" class="btn" id="audExp">⬇ Export Excel</button></div>
@@ -902,7 +905,7 @@ function renderFuKpi(items, getR, tab, unit){
   const touched = c.total - c.none, pct = n => c.total ? Math.round(n / c.total * 100) + "%" : "0%";
   const dot = k => { const o = FU.find(x => x.k === k); return o ? `<i class="fudot fc-${o.fc}"></i>` : ""; };
   const box = (k, label, v, sub, cls) => `<button type="button" class="fk${cls ? " " + cls : ""}${cur === k ? " on" : ""}" data-k="${k}"><span class="l">${dot(k === "__touched" ? "contacted" : k)}${label}</span><span class="v">${nf(v)}</span><span class="s">${sub}</span></button>`;
-  const scope = tab === "st" ? `${nf(c.total)} สถานีที่มีงานต้องติดตาม (จาก ${nf(items.length)} สถานีในรายงาน)` : tab === "all" ? `งานตีตราทั้งหมด ${nf(c.total)} Job` : `กลุ่มที่แสดงอยู่ ${nf(c.total)} ${unit}`;
+  const scope = tab === "st" ? (c.total === items.length ? `รายงานต่ออายุรับรอง ${nf(c.total)} สถานี` : `${nf(c.total)} สถานีที่มีการติดตาม (จาก ${nf(items.length)} สถานีในรายงาน)`) : tab === "all" ? `งานตีตราทั้งหมด ${nf(c.total)} Job` : `กลุ่มที่แสดงอยู่ ${nf(c.total)} ${unit}`;
   $("fuKpi").innerHTML = `<div class="fkh">ผลการติดตาม <span class="muted">· ${scope}</span></div><div class="fkrow">`
     + box("__touched", "ติดต่อแล้ว", touched, `${pct(touched)} ของทั้งหมด`, "fcv-blue")
     + box("", "ยังไม่ติดต่อ", c.none, pct(c.none), "fcv-red")
