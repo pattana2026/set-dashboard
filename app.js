@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.19.1", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.19.2", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -342,7 +342,7 @@ const dt=k=>({k,cls:"nw",r:r=>fmtD(r[k])});
 
 /* สถานะการติดตาม: ใช้ที่ทีมบันทึกไว้ก่อน ถ้ายังไม่บันทึกแต่สถานีมี Job No. ใหม่แล้ว (เปิดงานหลังงานรอบนี้ปิด แต่ยังไม่จบ)
    = ลูกค้าตกลงต่อสัญญาแล้ว → แสดง "ตกลงต่อสัญญา" อัตโนมัติ (ไม่บันทึกลงฐานข้อมูล) */
-const fuOf=r=>{ const f=(r.fuKey&&S.fu[r.fuKey])||null; if(f&&f.s) return f; if(r.renewJob) return Object.assign({},f||{},{s:"renewed",auto:true,autoJob:r.renewJob}); return f||{}; };
+const fuOf=r=>{ const f=(r.fuKey&&S.fu[r.fuKey])||null; if(f&&f.s) return f; if(r.renewJob||r.thisYear) return Object.assign({},f||{},{s:"renewed",auto:true,autoJob:r.renewJob||r}); return f||{}; };
 const CLOSED=["renewed","declined"];
 function dueDays(f){ if(!f||!f.next||CLOSED.includes(f.s)) return null; const d=toDate(f.next); return d?Math.round((d-TODAY)/DAY):null; }
 const isDue=r=>{const d=dueDays(fuOf(r)); return d!==null&&d<=0;};
@@ -433,6 +433,8 @@ function markSuperseded(){
   const pend=new Map();
   S.all.forEach(r=>{ r.renewJob=null; if(r.done||!r.open||!r.scope.ok) return; const k=String(r.code||"").trim()||("name:"+String(r.name||"").trim()); if(!pend.has(k)) pend.set(k,[]); pend.get(k).push(r); });
   m.forEach((rs,k)=>{ const ps=pend.get(k); if(!ps) return; rs.forEach(r=>{ if(r.superseded) return; const nx=ps.filter(x=>+x.open>+r.fin).sort((a,b)=>a.open-b.open)[0]; if(nx) r.renewJob=nx; }); });
+  /* มี Job ปีนี้ (ปีตามเลข Job) ที่ตีตราเสร็จแล้ว = ต่อสัญญาแล้วสำหรับปีนี้ — ขึ้นปีใหม่จะกลับมาเป็น "ยังไม่ติดต่อ" เอง */
+  S.all.forEach(r=>{ r.thisYear=!!(r.done&&r.scope.ok&&!r.superseded&&jobYear(r)===CUR_Y); });
 }
 function renderTables(rows){
   /* ติดตามต่อสัญญารอบใหม่: เฉพาะงานที่ยังไม่ได้ดำเนินการ (ตัด Job ที่สถานีตีตรารอบใหม่แล้ว) จนถึงครบรอบไม่เกิน 60 วัน */
@@ -645,7 +647,8 @@ function openAudit(){
    ${tr("&nbsp;&nbsp;ต้องติดตาม (เลยกำหนด – ครบรอบภายใน 60 วัน)",nf(a.near)+" Job")}
    ${tr("&nbsp;&nbsp;ครบรอบมากกว่า 60 วัน",nf(a.far)+" Job")}
    ${tr("&nbsp;&nbsp;ไม่แสดง: สถานีตีตรารอบใหม่แล้ว",nf(a.sup)+" Job")}
-   ${tr("&nbsp;&nbsp;ในจำนวนนี้: ตกลงต่อสัญญาอัตโนมัติ (มี Job No. ใหม่ที่ยังไม่จบ)",nf(a.base.filter(r=>r.renewJob&&!(S.fu[r.fuKey]&&S.fu[r.fuKey].s)).length)+" Job")}
+   ${tr("&nbsp;&nbsp;ในจำนวนนี้: ตกลงต่อสัญญาอัตโนมัติ — มี Job No. ใหม่ที่ยังไม่จบ",nf(a.base.filter(r=>r.renewJob&&!(S.fu[r.fuKey]&&S.fu[r.fuKey].s)).length)+" Job")}
+   ${tr("&nbsp;&nbsp;ในจำนวนนี้: ตกลงต่อสัญญาอัตโนมัติ — ตีตราแล้วในปี "+CUR_Y,nf(a.base.filter(r=>!r.renewJob&&r.thisYear&&!(S.fu[r.fuKey]&&S.fu[r.fuKey].s)).length)+" Job")}
   </tbody></table>
   <div class="audhd"><b>Job ที่ไม่นับเป็นงานทั้งสถานี (${nf(a.out.length)})</b><button type="button" class="btn" id="audExp">⬇ Export Excel</button></div>
   <div class="audlist"><table class="audit"><thead><tr><th>Job no.</th><th>ID Station</th><th>Problem</th><th>เหตุผล</th></tr></thead><tbody>
