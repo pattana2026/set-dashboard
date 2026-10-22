@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.19.2", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.19.4", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -354,7 +354,7 @@ function nextTag(f){ if(!f.next) return ""; const d=dueDays(f), dt=toDate(f.next
 function fuCell(r){
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
-  const meta=(tags?`<div class="futags">${tags}</div>`:"")+(f.at?`<div class="fumeta">${f.note?esc(f.note)+"<br>":""}${esc(S.names[f.by]||"")} ${fmtDT(f.at)}</div>`:"");
+  const meta=(tags?`<div class="futags">${tags}</div>`:"")+(f.auto?(f.note?`<div class="fumeta">${esc(f.note)}</div>`:""):f.at?`<div class="fumeta">${f.note?esc(f.note)+"<br>":""}โดย ${esc(S.names[f.by]||"ไม่ทราบชื่อ")} · ${fmtDT(f.at)}</div>`:"");
   if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม">${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
   const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}">${o.label}</span>${meta}`;
 }
@@ -576,7 +576,8 @@ function stFuCell(g){
   const r=stFuJob(g); if(!r) return "";
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
-  const meta=tags?`<div class="futags">${tags}</div>`:"";
+  const who=f.auto?"":(f.s&&f.at)?`<div class="fumeta">โดย ${esc(S.names[f.by]||"ไม่ทราบชื่อ")}<br>${fmtDT(f.at)}</div>`:"";
+  const meta=(tags?`<div class="futags">${tags}</div>`:"")+who;
   const tip=`title="บันทึกกับ Job ${esc(r.job||r.wo)}${f.at?` · ล่าสุด ${esc(S.names[f.by]||"")} ${fmtDT(f.at)}`:""}${f.note?" · "+esc(f.note):""}"`;
   if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม" ${tip}>${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
   const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}" ${tip}>${o.label}</span>${meta}`;
