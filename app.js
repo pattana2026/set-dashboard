@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.18.0", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.19.1", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -340,7 +340,9 @@ function telify(s){
 const telTxt=(k,cls)=>({k,cls,r:r=>cls==="clamp"?`<div>${telify(r[k])}</div>`:telify(r[k])});
 const dt=k=>({k,cls:"nw",r:r=>fmtD(r[k])});
 
-const fuOf=r=>(r.fuKey&&S.fu[r.fuKey])||{};
+/* สถานะการติดตาม: ใช้ที่ทีมบันทึกไว้ก่อน ถ้ายังไม่บันทึกแต่สถานีมี Job No. ใหม่แล้ว (เปิดงานหลังงานรอบนี้ปิด แต่ยังไม่จบ)
+   = ลูกค้าตกลงต่อสัญญาแล้ว → แสดง "ตกลงต่อสัญญา" อัตโนมัติ (ไม่บันทึกลงฐานข้อมูล) */
+const fuOf=r=>{ const f=(r.fuKey&&S.fu[r.fuKey])||null; if(f&&f.s) return f; if(r.renewJob) return Object.assign({},f||{},{s:"renewed",auto:true,autoJob:r.renewJob}); return f||{}; };
 const CLOSED=["renewed","declined"];
 function dueDays(f){ if(!f||!f.next||CLOSED.includes(f.s)) return null; const d=toDate(f.next); return d?Math.round((d-TODAY)/DAY):null; }
 const isDue=r=>{const d=dueDays(fuOf(r)); return d!==null&&d<=0;};
@@ -427,6 +429,10 @@ function markSuperseded(){
   /* นับเฉพาะงานทั้งสถานี — งานซ่อม / ตีตราบางหัว ไม่ถือว่าตีตรารอบใหม่ */
   S.all.forEach(r=>{r.scope=scopeOf(r); r.superseded=false; if(!r.done||!r.fin||!r.scope.ok) return; const k=String(r.code||"").trim()||("name:"+String(r.name||"").trim()); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);});
   m.forEach(rs=>{ if(rs.length<2) return; const last=Math.max(...rs.map(r=>+r.fin)); rs.forEach(r=>{ if(+r.fin<last) r.superseded=true; }); });
+  /* Job No. ใหม่ที่ยังไม่จบ (งานทั้งสถานี เปิดหลังงานรอบนี้ปิด) → งานรอบนี้ถือว่าลูกค้าตกลงต่อสัญญาแล้ว */
+  const pend=new Map();
+  S.all.forEach(r=>{ r.renewJob=null; if(r.done||!r.open||!r.scope.ok) return; const k=String(r.code||"").trim()||("name:"+String(r.name||"").trim()); if(!pend.has(k)) pend.set(k,[]); pend.get(k).push(r); });
+  m.forEach((rs,k)=>{ const ps=pend.get(k); if(!ps) return; rs.forEach(r=>{ if(r.superseded) return; const nx=ps.filter(x=>+x.open>+r.fin).sort((a,b)=>a.open-b.open)[0]; if(nx) r.renewJob=nx; }); });
 }
 function renderTables(rows){
   /* ติดตามต่อสัญญารอบใหม่: เฉพาะงานที่ยังไม่ได้ดำเนินการ (ตัด Job ที่สถานีตีตรารอบใหม่แล้ว) จนถึงครบรอบไม่เกิน 60 วัน */
@@ -639,6 +645,7 @@ function openAudit(){
    ${tr("&nbsp;&nbsp;ต้องติดตาม (เลยกำหนด – ครบรอบภายใน 60 วัน)",nf(a.near)+" Job")}
    ${tr("&nbsp;&nbsp;ครบรอบมากกว่า 60 วัน",nf(a.far)+" Job")}
    ${tr("&nbsp;&nbsp;ไม่แสดง: สถานีตีตรารอบใหม่แล้ว",nf(a.sup)+" Job")}
+   ${tr("&nbsp;&nbsp;ในจำนวนนี้: ตกลงต่อสัญญาอัตโนมัติ (มี Job No. ใหม่ที่ยังไม่จบ)",nf(a.base.filter(r=>r.renewJob&&!(S.fu[r.fuKey]&&S.fu[r.fuKey].s)).length)+" Job")}
   </tbody></table>
   <div class="audhd"><b>Job ที่ไม่นับเป็นงานทั้งสถานี (${nf(a.out.length)})</b><button type="button" class="btn" id="audExp">⬇ Export Excel</button></div>
   <div class="audlist"><table class="audit"><thead><tr><th>Job no.</th><th>ID Station</th><th>Problem</th><th>เหตุผล</th></tr></thead><tbody>

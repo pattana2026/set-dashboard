@@ -279,3 +279,4 @@ table.audit td.num{text-align:right;white-space:nowrap;font-family:var(--f-mono)
 table.audit tr.h td{font-weight:700;background:var(--surface-2)}
 .audhd{display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px}
 .audlist{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.ntag.auto{background:var(--ok-soft);color:var(--ok)}
