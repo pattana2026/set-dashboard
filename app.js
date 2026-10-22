@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.20.2", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.20.3", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -313,7 +313,9 @@ function renderChips(rows){
 const pillProc=r=>r.proc?`<span class="pill ${r.done?'p-done':'p-pend'}">${esc(r.proc)}</span>`:"";
 const pillDays=r=>{const b=BUCKETS.find(x=>x.k===r.bucket);
   const t=r.days===null?"ไม่มีวันครบรอบ":r.days<0?`เลยมา ${nf(-r.days)} วัน`:r.days===0?"ครบวันนี้":`อีก ${nf(r.days)} วัน`;
-  return `<span class="pill p-${r.bucket}" title="${b.label}">${t}</span>`;};
+  /* บันทึกสถานะการติดตามแล้ว (หรือระบบตั้งให้) → แถบจางลง */
+  const done=!!fuOf(r).s;
+  return `<span class="pill p-${r.bucket}${done?" faded":""}" title="${b.label}${done?" · บันทึกการติดตามแล้ว":""}">${t}</span>`;};
 const dCell=(d,src)=>d?(src==="other"?`<span title="ดึงจากข้อความวันหมดอายุรอบถัดไปในช่อง Other">${fmtD(d)}</span>`:src==="minus1y"?`<span title="นับถอยหลัง 1 ปีจาก WarrantDate">${fmtD(d)}</span>`:fmtD(d)):"";
 const snCell=r=>r.serial?`<span class="sn${r.serialSrc==='other'?' derived':''}" ${r.serialSrc==='other'?'title="ดึงจากช่อง Other"':''}>${safe(r.serial)}</span>`:'';
 /* ตัวเลขที่ไม่ใช่เบอร์โทร (Work order, Job no., เลขทะเบียน ฯลฯ) ถูกแบ่งเป็นช่วงสั้นๆ ข้างในหน้าเว็บ

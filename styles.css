@@ -288,3 +288,4 @@ table.audit tr.h td{font-weight:700;background:var(--surface-2)}
 .fudot.fc-red{background:var(--fc-red)}.fudot.fc-blue{background:var(--fc-blue)}.fudot.fc-orange{background:var(--fc-orange)}.fudot.fc-green{background:var(--fc-green)}.fudot.fc-yellow{background:var(--fc-yellow)}
 .fk.fcv-red .v{color:var(--fc-red)}.fk.fcv-blue .v{color:var(--fc-blue)}.fk.fcv-orange .v{color:var(--fc-orange)}.fk.fcv-green .v{color:var(--fc-green)}.fk.fcv-yellow .v{color:var(--fc-yellow)}
 .fk.fcv-red{border-top:3px solid var(--fc-red)}.fk.fcv-blue{border-top:3px solid var(--fc-blue)}.fk.fcv-orange{border-top:3px solid var(--fc-orange)}.fk.fcv-green{border-top:3px solid var(--fc-green)}.fk.fcv-yellow{border-top:3px solid var(--fc-yellow)}
+.pill.faded{opacity:.38;filter:saturate(.6)}
