@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.19.4", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.20.1", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -355,8 +355,8 @@ function fuCell(r){
   const key=r.fuKey, f=fuOf(r), st=f.s||"";
   const tags=[f.asg?`<span class="atag">👤 ${esc(asgName(f.asg))}</span>`:"", nextTag(f)].filter(Boolean).join("");
   const meta=(tags?`<div class="futags">${tags}</div>`:"")+(f.auto?(f.note?`<div class="fumeta">${esc(f.note)}</div>`:""):f.at?`<div class="fumeta">${f.note?esc(f.note)+"<br>":""}โดย ${esc(S.names[f.by]||"ไม่ทราบชื่อ")} · ${fmtDT(f.at)}</div>`:"");
-  if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม">${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
-  const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}">${o.label}</span>${meta}`;
+  if(DB&&CAN_FU&&key) return `<span class="fuwrap"><i class="fudot fc-${fuColor(st)}"></i><select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม">${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select></span>${meta}`;
+  const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="fuwrap"><i class="fudot fc-${o.fc}"></i><span class="fupill">${o.label}</span></span>${meta}`;
 }
 function dueCell(r){ if(!r.due) return "";
   if(r.dueSrc==="next") return `<span class="derived" title="ไม่พบวันหมดอายุในช่อง Other — ใช้ครบรอบครั้งถัดไปแทน">${fmtD(r.due)}</span>`;
@@ -391,6 +391,7 @@ const COLS_RENEW=[
 ];
 const COLS_ALL=[
   {k:"proc",label:"สถานะดำเนินการ",cls:"nw",r:pillProc},
+  {k:"fuS",label:"การติดตาม",cls:"nw",hl:1,r:fuCell},
   {label:"Work order",...txt("wo","nw")},{label:"Job no.",...txt("job","nw")},
   {label:"Open date",...dt("open")},{label:"Finish date",...dt("fin")},
   {label:"Brand",...txt("brand","nw")},{label:"ID Station",...txt("code","nw")},{label:"Station",...txt("name","wide")},
@@ -579,8 +580,8 @@ function stFuCell(g){
   const who=f.auto?"":(f.s&&f.at)?`<div class="fumeta">โดย ${esc(S.names[f.by]||"ไม่ทราบชื่อ")}<br>${fmtDT(f.at)}</div>`:"";
   const meta=(tags?`<div class="futags">${tags}</div>`:"")+who;
   const tip=`title="บันทึกกับ Job ${esc(r.job||r.wo)}${f.at?` · ล่าสุด ${esc(S.names[f.by]||"")} ${fmtDT(f.at)}`:""}${f.note?" · "+esc(f.note):""}"`;
-  if(DB&&CAN_FU&&key) return `<select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม" ${tip}>${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select>${meta}`;
-  const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="pill p-${o.cls}" ${tip}>${o.label}</span>${meta}`;
+  if(DB&&CAN_FU&&key) return `<span class="fuwrap"><i class="fudot fc-${fuColor(st)}"></i><select class="fusel" data-key="${esc(key)}" aria-label="สถานะการติดตาม" ${tip}>${FU.map(o=>`<option value="${o.k}"${o.k===st?" selected":""}>${o.label}</option>`).join("")}</select></span>${meta}`;
+  const o=FU.find(x=>x.k===st)||FU[0]; return `<span class="fuwrap" ${tip}><i class="fudot fc-${o.fc}"></i><span class="fupill">${o.label}</span></span>${meta}`;
 }
 function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
@@ -723,11 +724,13 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")$("drawer").hidden=t
 /* ================= Supabase: login, shared data, realtime ================= */
 const CFG = window.SET_CONFIG || {};
 let DB = null, UID = null, ROLE = null, CAN_UP = false, CAN_FU = false, CH = null;
+/* สีสถานะการติดตาม: ยังไม่ติดต่อ=แดง · ติดต่อแล้ว=ฟ้า · รอลูกค้าตัดสินใจ=ส้ม · ตกลงต่อสัญญา=เขียว · ไม่ต่อสัญญา=เหลือง */
 const FU = [
-  {k:"",label:"ยังไม่ติดต่อ",cls:"none"},{k:"contacted",label:"ติดต่อแล้ว",cls:"d60"},
-  {k:"waiting",label:"รอลูกค้าตัดสินใจ",cls:"d30"},{k:"renewed",label:"ตกลงต่อสัญญา",cls:"later"},
-  {k:"declined",label:"ไม่ต่อสัญญา",cls:"overdue"}
+  {k:"",label:"ยังไม่ติดต่อ",cls:"none",fc:"red"},{k:"contacted",label:"ติดต่อแล้ว",cls:"d60",fc:"blue"},
+  {k:"waiting",label:"รอลูกค้าตัดสินใจ",cls:"d30",fc:"orange"},{k:"renewed",label:"ตกลงต่อสัญญา",cls:"later",fc:"green"},
+  {k:"declined",label:"ไม่ต่อสัญญา",cls:"overdue",fc:"yellow"}
 ];
+const fuColor=st=>(FU.find(o=>o.k===(st||""))||FU[0]).fc;
 const ROLES = {admin:"ผู้ดูแล (Upload ได้)", staff:"ทีมติดตาม (บันทึกได้)", viewer:"ดูอย่างเดียว"};
 const SHARE_KEYS = Object.keys(FIELDS);
 const isoD = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -897,14 +900,15 @@ function renderFuKpi(items, getR, tab, unit){
   const c = {total: base.length, none: 0, contacted: 0, waiting: 0, renewed: 0, declined: 0, due: 0};
   base.forEach(r => { const f = fuOf(r); c[f.s || "none"]++; if (isDue(r)) c.due++; });
   const touched = c.total - c.none, pct = n => c.total ? Math.round(n / c.total * 100) + "%" : "0%";
-  const box = (k, label, v, sub, cls) => `<button type="button" class="fk${cls ? " " + cls : ""}${cur === k ? " on" : ""}" data-k="${k}"><span class="l">${label}</span><span class="v">${nf(v)}</span><span class="s">${sub}</span></button>`;
+  const dot = k => { const o = FU.find(x => x.k === k); return o ? `<i class="fudot fc-${o.fc}"></i>` : ""; };
+  const box = (k, label, v, sub, cls) => `<button type="button" class="fk${cls ? " " + cls : ""}${cur === k ? " on" : ""}" data-k="${k}"><span class="l">${dot(k === "__touched" ? "contacted" : k)}${label}</span><span class="v">${nf(v)}</span><span class="s">${sub}</span></button>`;
   const scope = tab === "st" ? `${nf(c.total)} สถานีที่มีงานต้องติดตาม (จาก ${nf(items.length)} สถานีในรายงาน)` : tab === "all" ? `งานตีตราทั้งหมด ${nf(c.total)} Job` : `กลุ่มที่แสดงอยู่ ${nf(c.total)} ${unit}`;
   $("fuKpi").innerHTML = `<div class="fkh">ผลการติดตาม <span class="muted">· ${scope}</span></div><div class="fkrow">`
-    + box("__touched", "ติดต่อแล้ว", touched, `${pct(touched)} ของทั้งหมด`, "")
-    + box("", "ยังไม่ติดต่อ", c.none, pct(c.none), "")
-    + box("waiting", "รอลูกค้าตัดสินใจ", c.waiting, pct(c.waiting), "warn")
-    + box("renewed", "ตกลงต่อสัญญา", c.renewed, pct(c.renewed), "ok")
-    + box("declined", "ไม่ต่อสัญญา", c.declined, pct(c.declined), "bad")
+    + box("__touched", "ติดต่อแล้ว", touched, `${pct(touched)} ของทั้งหมด`, "fcv-blue")
+    + box("", "ยังไม่ติดต่อ", c.none, pct(c.none), "fcv-red")
+    + box("waiting", "รอลูกค้าตัดสินใจ", c.waiting, pct(c.waiting), "fcv-orange")
+    + box("renewed", "ตกลงต่อสัญญา", c.renewed, pct(c.renewed), "fcv-green")
+    + box("declined", "ไม่ต่อสัญญา", c.declined, pct(c.declined), "fcv-yellow")
     + box("__due", "ถึงกำหนดนัด", c.due, "วันนี้ / เลยนัด", c.due ? "bad" : "") + `</div>`;
   $("fuKpi").querySelectorAll(".fk").forEach(b => b.onclick = () => {
     const k = b.dataset.k;
