@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.17.1", APP_RELEASED = "21/10/2026";
+const APP_VERSION = "1.18.0", APP_RELEASED = "22/10/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -438,18 +438,21 @@ function renderTables(rows){
   S.kpiRenew=ren;
   if(S.fFu==="__due") ren=ren.filter(isDue);
   else if(S.fFu==="__touched") ren=ren.filter(r=>!!fuOf(r).s);
-  else if(S.fFu!=="any") ren=ren.filter(r=>(fuOf(r).s||"")===S.fFu);
+  else if(S.fFu==="any") ren=ren.filter(r=>!fuOf(r).s); /* ค่าเริ่มต้น: ซ่อนรายการที่บันทึกการติดตามแล้ว (ดูได้จากกล่อง KPI) */
+  else if(S.fFu!=="__all") ren=ren.filter(r=>(fuOf(r).s||"")===S.fFu);
   if(S.fAsg==="__me") ren=ren.filter(r=>fuOf(r).asg===UID);
   else if(S.fAsg==="__none") ren=ren.filter(r=>!fuOf(r).asg);
   else if(S.fAsg&&S.fAsg!=="any") ren=ren.filter(r=>fuOf(r).asg===S.fAsg);
   /* ค้นหาแล้วไม่เจอในแท็บนี้ → บอกเหตุผล (ถูกตัวกรองการติดตาม / ตีตรารอบใหม่แล้ว / เกิน 60 วัน) */
   S.renEmpty="";
+  const hidRec=S.fFu==="any"?base.filter(r=>fuOf(r).s).length:0;
   if(!ren.length&&S.f.q.trim()&&rows.length){
     const grp=S.bucket==="far"?RENEW_FAR:RENEW_BUCKETS, other=S.bucket==="far"?RENEW_BUCKETS:RENEW_FAR;
     const in60=base.filter(r=>grp.includes(r.bucket)).length, sup=rows.filter(r=>r.superseded).length, outN=rows.filter(r=>!isReportJob(r)).length;
     const why=[];
     if(in60&&(S.fFu!=="any"||(S.fAsg&&S.fAsg!=="any"))) why.push(`ถูกตัวกรอง "การติดตาม / ผู้รับผิดชอบ" ซ่อนอยู่ ${nf(in60)} รายการ — กด "ล้างตัวกรอง"`);
     else if(in60&&S.renewMonth!==null) why.push(`อยู่นอกเดือนที่เลือกจากกราฟ — กด "ล้างตัวกรอง"`);
+    if(hidRec) why.push(`บันทึกการติดตามแล้ว (ดูที่กล่อง KPI) ${nf(hidRec)} Job`);
     if(sup) why.push(`สถานีตีตรารอบใหม่แล้ว ${nf(sup)} Job`);
     if(outN) why.push(`ไม่ใช่งานทั้งสถานี ${nf(outN)} Job`);
     const oth=base.filter(r=>other.includes(r.bucket)).length; if(oth) why.push(S.bucket==="far"?`อยู่ในปุ่ม "ต้องติดตาม" ${nf(oth)} Job`:`อยู่ในปุ่ม "ครบรอบมากกว่า 60 วัน" ${nf(oth)} Job`);
@@ -457,7 +460,7 @@ function renderTables(rows){
     S.renEmpty=`ไม่พบในรายการต้องติดตาม — พบ ${nf(rows.length)} Job ที่แท็บงานตีตราทั้งหมด`+(why.length?` (${why.join(" · ")})`:"");
   }
   S.renRows=ren; S.allRows=rows;
-  S.kpiAll=rows; const allShown=S.kf.all!=="any"?rows.filter(r=>fuMatch(r,S.kf.all)):rows;
+  S.kpiAll=rows; const allShown=S.kf.all!=="any"?rows.filter(r=>fuMatch(r,S.kf.all)):rows.filter(r=>!fuOf(r).s);
   $("cRenew").textContent=nf(ren.length); $("cAll").textContent=nf(allShown.length);
   if(typeof renderBulk==="function") renderBulk(ren);
   renderTable("renew",ren,COLS_RENEW); renderTable("all",allShown,COLS_ALL);
@@ -574,6 +577,7 @@ function renderStations(rows){
   const s=S.sort.st; const kept=rows.filter(isReportJob); let gs=stGroups(kept);
   S.kpiSt=gs;
   if(S.kf.st!=="any") gs=gs.filter(g=>{const r=stFuJob(g); return r&&fuMatch(r,S.kf.st);});
+  else gs=gs.filter(g=>{const r=stFuJob(g); return !r||!fuOf(r).s;}); /* ค่าเริ่มต้น: ซ่อนสถานีที่บันทึกการติดตามแล้ว */
   gs.sort((a,b)=>{const x=stSortVal(a,s.k),y=stSortVal(b,s.k); if(x===null&&y===null)return 0; if(x===null)return 1; if(y===null)return -1;
     return (typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"th"))*s.d;});
   S.stRows=gs; $("cSt").textContent=nf(gs.length);
@@ -801,7 +805,9 @@ async function saveFU(key, patch){
     S.fu[key] = fuFromRow(data);
   };
   const p = (fuQueue[key] || Promise.resolve()).catch(()=>{}).then(run); fuQueue[key] = p;
-  try{ await p; render(); return true; }
+  try{ await p; render();
+    if (patch.s) { const o = FU.find(x => x.k === patch.s); if (o) banner(`บันทึก "${o.label}" แล้ว — รายการนี้ย้ายไปอยู่ที่กล่อง KPI "${o.label}"`, "ok"); }
+    return true; }
   catch(e){ if (prev) S.fu[key] = prev; else delete S.fu[key]; render(); banner(sbMsg(e), "err"); return false; }
 }
 async function bulkAssign(rows, asg){
@@ -867,7 +873,7 @@ window.addEventListener("drop", e => { e.preventDefault(); dragN = 0; $("dropove
 /* ---------- filters & tabs ---------- */
 let qT; $("q").oninput = e => { clearTimeout(qT); qT = setTimeout(() => { S.f.q = e.target.value; S.page = {renew: 0, all: 0, st: 0}; render(); }, 150); };
 ["fBrand","fProc","fSup","fUser","fMonth"].forEach(id => $(id).onchange = () => { syncF(); S.page = {renew: 0, all: 0, st: 0}; render(); });
-$("fFu").innerHTML = `<option value="any">การติดตาม: ทั้งหมด</option><option value="__due">📅 ถึงกำหนดนัด (วันนี้ / เลยนัด)</option><option value="__touched">ติดต่อแล้ว (ทุกสถานะ)</option>` + FU.map(o => `<option value="${o.k}">${o.label}</option>`).join("");
+$("fFu").innerHTML = `<option value="any">การติดตาม: ยังไม่ได้บันทึก</option><option value="__all">แสดงทั้งหมด (รวมที่บันทึกแล้ว)</option><option value="__due">📅 ถึงกำหนดนัด (วันนี้ / เลยนัด)</option><option value="__touched">ติดต่อแล้ว (ทุกสถานะ)</option>` + FU.map(o => `<option value="${o.k}">${o.label}</option>`).join("");
 function buildAsgOptions(){
   const people = (S.profiles || []).filter(p => p.role !== "viewer"), cur = S.fAsg || "any";
   $("fAsg").innerHTML = `<option value="any">ผู้รับผิดชอบ: ทั้งหมด</option><option value="__me">👤 งานของฉัน</option><option value="__none">ยังไม่มอบหมาย</option>` + people.map(p => `<option value="${p.id}">${esc(p.display_name || p.username)}</option>`).join("");
