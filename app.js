@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.20.3", APP_RELEASED = "22/10/2026";
+const APP_VERSION = "1.21.0", APP_RELEASED = "16/11/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -13,7 +13,8 @@ const FIELDS = {
   problem:["problem"], other:["other"], deadline:["deadline"], addr:["address"], month:["month"],
   reqno:["เลขที่คำขอออนไลน์"], reqdate:["วันที่ยื่นคำขอ"], proc:["สถานะดำเนินการ"], next:["ครบรอบครั้งถัดไป"],
   serialF:["serialnumber","serialno","serial","sn"], installF:["installdate","installationdate"],
-  warrantF:["warrantdate","warrantydate","warrantyexpire","warrantyexpiredate"]
+  warrantF:["warrantdate","warrantydate","warrantyexpire","warrantyexpiredate"],
+  src:["datasource"] /* "" = Excel, "sms" = Job ใหม่จาก SMS ที่ยังไม่มีใน Excel, "excel+sms" = มีทั้งสองแหล่ง */
 };
 const REQUIRED = {wo:"Work order", job:"Job no.", name:"Station", fin:"Finish date", other:"Other"};
 const DATE_KEYS = ["open","fin","deadline","reqdate","next","installF","warrantF"];
@@ -220,7 +221,10 @@ function render(){
   renderSrc(); renderKpis(rows); renderMonth(rows); renderRenewChart(act); renderBrand(rows);
   renderChips(act); renderTables(rows);
 }
-function renderSrc(){ $("srcinfo").innerHTML=""; const u=$("updAt"); if(u) u.textContent=S.src&&S.src.at?`อัปเดต ${fmtDT(S.src.at)}`:""; }
+function renderSrc(){ $("srcinfo").innerHTML=""; const u=$("updAt"); if(!u) return;
+  const xl=S.src&&S.src.at?`อัปเดต Excel ${fmtDT(S.src.at)}`:"";
+  const sm=!S.sms?"":S.sms.err?"SMS: อ่านข้อมูลไม่ได้":S.sms.last?`SMS sync ${fmtDT(S.sms.last)}`:"";
+  u.textContent=[xl,sm].filter(Boolean).join(" · "); u.title=S.sms&&S.sms.err?S.sms.err:""; }
 /* กลุ่มปีของ WarrantDate: past = ปีที่ผ่านมา (ดำเนินการแล้ว), now = ปีนี้ (กำลังดำเนินการ), future = ปีถัดไป (จะดำเนินการ) */
 const CUR_Y=TODAY.getFullYear(), BE=y=>y; /* แสดงปี ค.ศ. */
 const yrGroup=r=>!r.due?null:r.due.getFullYear()<CUR_Y?"past":r.due.getFullYear()===CUR_Y?"now":"future";
@@ -642,6 +646,8 @@ function openAudit(){
   const html=`<p class="muted" style="margin:0 0 8px">ตัวเลขตามตัวกรองด้านบนที่ใช้อยู่ · เงื่อนไขงานทั้งสถานี: Problem มีคำว่า ${REPORT_KEYWORDS.map(k=>`"${esc(k)}"`).join(", ")} หรือระบุตั้งแต่ ${ST_MIN_HEADS} หัว/มือจ่าย/เครื่องขึ้นไป</p>
   <table class="audit"><tbody>
    ${tr("งานตีตราทั้งหมด",nf(a.rows.length)+" Job","h")}
+   ${tr("&nbsp;&nbsp;จาก Excel",nf(a.rows.filter(r=>r.src!=="sms").length)+" Job")}
+   ${tr("&nbsp;&nbsp;จาก SMS (Job ใหม่ที่ยังไม่มีใน Excel)",nf(a.rows.filter(r=>r.src==="sms").length)+" Job")}
    ${tr("&nbsp;&nbsp;นับเป็นงานทั้งสถานี (จากคำใน Problem)",nf(a.byKw)+" Job")}
    ${tr("&nbsp;&nbsp;นับเป็นงานทั้งสถานี (จากจำนวนหัว)",nf(a.inS.length-a.byKw)+" Job")}
    ${tr("&nbsp;&nbsp;ไม่นับ (รายการด้านล่าง)",nf(a.out.length)+" Job")}
@@ -781,7 +787,59 @@ async function loadJobs(st){
   if (S.loadedV !== st.current_batch) return;
   const aoa = [SHARE_KEYS.map(k => FIELDS[k][0])];
   rows.forEach(r => aoa.push(SHARE_KEYS.map(k => (r.data && r.data[k] != null) ? r.data[k] : "")));
+  S.st = st;
+  await loadSMS();
+  if (S.loadedV !== st.current_batch) return;
+  S.sms.merge = mergeSMS(aoa, S.sms.rows);
   load(aoa, {name: st.file_name, at: st.uploaded_at, by: st.uploaded_by, mode: "shared"});
+}
+
+/* ---------- SMS: Job ตีตราจากตาราง sms_seal_jobs (เขียนโดย Cloudflare Worker) ----------
+   อ่านอย่างเดียว · ถ้าอ่านไม่ได้ Dashboard ยังทำงานด้วยข้อมูล Excel ตามปกติ
+   กติกา: Job ที่มีใน Excel แล้ว → เติมเฉพาะ Finish date (เมื่อ SMS ปิดงานแล้วแต่ Excel ยังว่าง) ไม่แตะ Other / Problem
+          Job ที่ยังไม่มีใน Excel → เพิ่มเป็นแถวใหม่ (ไม่มี Other จึงยังไม่มีวันตรวจรับรองครั้งถัดไป)
+          ข้อมูลการติดตาม (followups) ผูกด้วย Job No. เหมือนเดิม */
+const SMS_BRAND = {PTT:"PTTOR", PT:"PTG", SUSCO:"Susco", CALTEX:"Caltex", SHELL:"Shell"};
+async function loadSMS(){
+  S.sms = {rows: [], last: null, err: null, merge: {added: 0, updated: 0}};
+  try{
+    S.sms.rows = await fetchAll("sms_seal_jobs", "job_id,status,work_id,open_date_raw,close_date_raw,station_id,station_name,problem,synced_at,van:source_payload->>VAN", q => q.order("job_id"));
+    try{
+      const { data } = await DB.from("sms_sync_log").select("run_at").eq("ok", true).order("run_at", {ascending: false}).limit(1);
+      S.sms.last = (data && data[0] && data[0].run_at) || null;
+    }catch(_){}
+    if (!S.sms.last) S.sms.last = S.sms.rows.reduce((a, r) => (r.synced_at || "") > a ? r.synced_at : a, "") || null;
+  }catch(e){ S.sms.rows = []; S.sms.err = sbMsg(e); }
+}
+function mergeSMS(aoa, sms){
+  const res = {added: 0, updated: 0};
+  if (!sms || !sms.length) return res;
+  const ix = Object.fromEntries(SHARE_KEYS.map((k, i) => [k, i]));
+  const byJob = new Map(), byCode = new Map();
+  for (let i = 1; i < aoa.length; i++){
+    const r = aoa[i], j = String(r[ix.job] || "").trim().toUpperCase(), c = String(r[ix.code] || "").trim();
+    if (j) byJob.set(j, r); if (c) byCode.set(c, r);
+  }
+  for (const s of sms){
+    const id = String(s.job_id || "").trim().toUpperCase(); if (!id) continue;
+    const close = /^completed/i.test(s.status || "") ? String(s.close_date_raw || "").trim() : "";
+    const ex = byJob.get(id);
+    if (ex){
+      if (!ex[ix.src]) ex[ix.src] = "excel+sms";
+      if (close && !String(ex[ix.fin] || "").trim()){ ex[ix.fin] = close; res.updated++; }
+      continue;
+    }
+    const ref = byCode.get(String(s.station_id || "").trim());   /* ข้อมูลสถานีจากแถว Excel ของสถานีเดียวกัน */
+    const pre = (String(s.station_name || "").trim().split(/\s+/)[0] || "").toUpperCase();
+    const row = SHARE_KEYS.map(() => "");
+    row[ix.wo] = s.work_id || ""; row[ix.job] = id; row[ix.open] = s.open_date_raw || ""; row[ix.fin] = close;
+    row[ix.status] = s.status || ""; row[ix.code] = s.station_id || ""; row[ix.name] = s.station_name || "";
+    row[ix.brand] = ref ? ref[ix.brand] : (SMS_BRAND[pre] || pre);
+    if (ref){ ["province","inform","phone","sup","addr"].forEach(k => { row[ix[k]] = ref[ix[k]] || ""; }); }
+    row[ix.user] = s.van || ""; row[ix.problem] = s.problem || ""; row[ix.src] = "sms";
+    aoa.push(row); byJob.set(id, row); res.added++;
+  }
+  return res;
 }
 const fuFromRow = r => ({s: r.status || "", note: r.note || "", next: r.next_date || null, asg: r.assignee || null, by: r.updated_by, at: r.updated_at});
 async function loadFU(){
@@ -850,6 +908,10 @@ function subscribe(){
       S.fu[r.job_key] = fuFromRow(r);
       if (r.updated_by && !(r.updated_by in S.names)) loadProfiles().then(render).catch(()=>{});
       render();
+    })
+    .on("postgres_changes", {event: "INSERT", schema: "public", table: "sms_sync_log"}, p => {
+      if (!p.new || !p.new.ok || !S.st || !S.st.current_batch) return;
+      loadJobs(S.st).then(() => banner(`อัปเดต Job จาก SMS แล้ว · ${fmtDT(p.new.run_at)}`, "ok")).catch(() => {});
     })
     .on("postgres_changes", {event: "UPDATE", schema: "public", table: "app_state"}, p => {
       const st = p.new || {};
