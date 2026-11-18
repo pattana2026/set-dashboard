@@ -1,6 +1,8 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.22.0", APP_RELEASED = "17/11/2026";
+const APP_VERSION = "1.23.0", APP_RELEASED = "18/11/2026";
+/* ข้อมูลมาจาก SMS อัตโนมัติแล้ว จึงปิดปุ่ม Upload Excel · ถ้าต้องใช้อีก เปลี่ยนเป็น true */
+const ALLOW_EXCEL_UPLOAD = false;
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -222,7 +224,7 @@ function render(){
   renderChips(act); renderTables(rows);
 }
 function renderSrc(){ $("srcinfo").innerHTML=""; const u=$("updAt"); if(!u) return;
-  const xl=S.src&&S.src.at?`อัปเดต Excel ${fmtDT(S.src.at)}`:"";
+  const xl=S.src&&S.src.at?`ข้อมูลตั้งต้น Excel ${fmtDT(S.src.at)}`:"";
   const sm=!S.sms?"":S.sms.err?"SMS: อ่านข้อมูลไม่ได้":S.sms.last?`SMS sync ${fmtDT(S.sms.last)}`:"";
   u.textContent=[xl,sm].filter(Boolean).join(" · "); u.title=S.sms&&S.sms.err?S.sms.err:""; }
 /* กลุ่มปีของ WarrantDate: past = ปีที่ผ่านมา (ดำเนินการแล้ว), now = ปีนี้ (กำลังดำเนินการ), future = ปีถัดไป (จะดำเนินการ) */
@@ -743,7 +745,7 @@ const FU = [
   {k:"declined",label:"ไม่ต่อสัญญา",cls:"overdue",fc:"yellow"}
 ];
 const fuColor=st=>(FU.find(o=>o.k===(st||""))||FU[0]).fc;
-const ROLES = {admin:"ผู้ดูแล (Upload ได้)", staff:"ทีมติดตาม (บันทึกได้)", viewer:"ดูอย่างเดียว"};
+const ROLES = {admin:"ผู้ดูแล", staff:"ทีมติดตาม (บันทึกได้)", viewer:"ดูอย่างเดียว"};
 const SHARE_KEYS = Object.keys(FIELDS);
 const isoD = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const fmtDT = s => { const d = new Date(s); return isNaN(d) ? "" : fmtD(d)+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); };
@@ -1092,7 +1094,7 @@ async function start(session){
     ROLE = me ? me.role : "viewer"; CAN_UP = ROLE === "admin"; CAN_FU = ROLE === "admin" || ROLE === "staff";
     S.me = {name: (me && (me.display_name || me.username)) || session.user.email, avatarUrl: ""};
     renderWho();
-    $("uploadBtn").hidden = !CAN_UP; $("usersBtn").hidden = !CAN_UP;
+    $("uploadBtn").hidden = !(CAN_UP && ALLOW_EXCEL_UPLOAD); $("usersBtn").hidden = !CAN_UP;
     const st = await loadState();
     await Promise.all([loadJobs(st), loadFU()]);
     render(); subscribe();

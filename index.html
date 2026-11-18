@@ -8,7 +8,7 @@
 <title>SETS Seal Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=1.22.0">
+<link rel="stylesheet" href="styles.css?v=1.23.0">
 </head>
 <body>
 <div class="wrap">
@@ -100,9 +100,9 @@
   </section>
 
   <p class="foot">
-    WarrantDate: ใช้คอลัมน์ในไฟล์ ถ้าไม่มีจะดึงวันหมดอายุรอบถัดไปจากช่อง Other · InstallDate: ใช้คอลัมน์ในไฟล์ ถ้าไม่มีนับถอยหลัง 1 ปีจาก WarrantDate · SerialNumber: แสดงเมื่อไฟล์มีคอลัมน์นี้<br>
+    WarrantDate: ใช้คอลัมน์ในไฟล์ ถ้าไม่มีจะดึงวันหมดอายุรอบถัดไปจากช่อง Other (Excel หรือข้อความปิดงานใน SMS) · InstallDate: ใช้คอลัมน์ในไฟล์ ถ้าไม่มีนับถอยหลัง 1 ปีจาก WarrantDate · SerialNumber: แสดงเมื่อไฟล์มีคอลัมน์นี้<br>
     <span class="ver" id="verFoot"></span><br>
-    ต้องเข้าสู่ระบบจึงจะเห็นข้อมูล · เมื่อผู้ดูแล Upload ไฟล์ Excel ทุกคนจะเห็นข้อมูลชุดใหม่ทันที สถานะการติดตามลูกค้าบันทึกร่วมกันและไม่หายเมื่อ Upload ไฟล์ใหม่ (ผูกกับ Job no.) — เมื่อเชื่อม SMS ได้จะเปลี่ยนเป็นดึงข้อมูลอัตโนมัติ
+    ต้องเข้าสู่ระบบจึงจะเห็นข้อมูล · ข้อมูลดึงจาก SMS อัตโนมัติ: Job ที่ปิดแล้วพร้อม Other ทุกเช้า และ Job ที่เปิดใหม่จาก JOB Monitoring · ข้อมูลก่อน 19/10/2026 มาจาก Excel MS_Track · สถานะการติดตามลูกค้าบันทึกร่วมกัน (ผูกกับ Job no.)
   </p>
 </div>
 
@@ -128,7 +128,7 @@
 <div class="dropover" id="dropover" hidden>วางไฟล์ Excel เพื่ออัปเดตข้อมูล</div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.22.0"></script>
-<script src="app.js?v=1.22.0"></script>
+<script src="config.js?v=1.23.0"></script>
+<script src="app.js?v=1.23.0"></script>
 </body>
 </html>
