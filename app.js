@@ -1,6 +1,6 @@
 "use strict";
 /* ===== เวอร์ชัน — ออกเวอร์ชันใหม่: เพิ่มเลขที่นี่ + ใน index.html (?v=) + บันทึกใน CHANGELOG.md ===== */
-const APP_VERSION = "1.21.0", APP_RELEASED = "16/11/2026";
+const APP_VERSION = "1.22.0", APP_RELEASED = "17/11/2026";
 const DAY = 86400000;
 const TODAY = (()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())})();
 
@@ -648,6 +648,7 @@ function openAudit(){
    ${tr("งานตีตราทั้งหมด",nf(a.rows.length)+" Job","h")}
    ${tr("&nbsp;&nbsp;จาก Excel",nf(a.rows.filter(r=>r.src!=="sms").length)+" Job")}
    ${tr("&nbsp;&nbsp;จาก SMS (Job ใหม่ที่ยังไม่มีใน Excel)",nf(a.rows.filter(r=>r.src==="sms").length)+" Job")}
+   ${tr("&nbsp;&nbsp;ได้ข้อความ Other จาก SMS (Job ที่ Excel ยังไม่มี Other)",nf((S.sms&&S.sms.mergeClosed&&S.sms.mergeClosed.other)||0)+" Job")}
    ${tr("&nbsp;&nbsp;นับเป็นงานทั้งสถานี (จากคำใน Problem)",nf(a.byKw)+" Job")}
    ${tr("&nbsp;&nbsp;นับเป็นงานทั้งสถานี (จากจำนวนหัว)",nf(a.inS.length-a.byKw)+" Job")}
    ${tr("&nbsp;&nbsp;ไม่นับ (รายการด้านล่าง)",nf(a.out.length)+" Job")}
@@ -791,6 +792,7 @@ async function loadJobs(st){
   await loadSMS();
   if (S.loadedV !== st.current_batch) return;
   S.sms.merge = mergeSMS(aoa, S.sms.rows);
+  S.sms.mergeClosed = mergeClosed(aoa, S.sms.closed);
   load(aoa, {name: st.file_name, at: st.uploaded_at, by: st.uploaded_by, mode: "shared"});
 }
 
@@ -801,15 +803,50 @@ async function loadJobs(st){
           ข้อมูลการติดตาม (followups) ผูกด้วย Job No. เหมือนเดิม */
 const SMS_BRAND = {PTT:"PTTOR", PT:"PTG", SUSCO:"Susco", CALTEX:"Caltex", SHELL:"Shell"};
 async function loadSMS(){
-  S.sms = {rows: [], last: null, err: null, merge: {added: 0, updated: 0}};
+  S.sms = {rows: [], closed: [], last: null, err: null, merge: {added: 0, updated: 0}};
   try{
     S.sms.rows = await fetchAll("sms_seal_jobs", "job_id,status,work_id,open_date_raw,close_date_raw,station_id,station_name,problem,synced_at,van:source_payload->>VAN", q => q.order("job_id"));
     try{
       const { data } = await DB.from("sms_sync_log").select("run_at").eq("ok", true).order("run_at", {ascending: false}).limit(1);
       S.sms.last = (data && data[0] && data[0].run_at) || null;
     }catch(_){}
+    try{ S.sms.closed = await fetchAll("sms_closed_jobs", "job_id,open_date,close_date,station_id,station_name,informer,phone,problem,technician,other_text", q => q.order("job_id")); }
+    catch(_){ S.sms.closed = []; }   /* ตารางยังไม่ถูกสร้าง → ใช้แบบเดิม */
     if (!S.sms.last) S.sms.last = S.sms.rows.reduce((a, r) => (r.synced_at || "") > a ? r.synced_at : a, "") || null;
   }catch(e){ S.sms.rows = []; S.sms.err = sbMsg(e); }
+}
+/* Job ตีตราที่ปิดแล้วจาก SMS Service (ตาราง sms_closed_jobs) — ให้ข้อความ Other (= Resole_Detail ตอนปิดงาน)
+   เติมเฉพาะช่องที่ยังว่าง: Other, Finish date, ผู้แจ้ง, เบอร์, ช่าง, Problem, Open date · ไม่ทับข้อมูลจาก Excel */
+function mergeClosed(aoa, closed){
+  const res = {filled: 0, other: 0, added: 0};
+  if (!closed || !closed.length) return res;
+  const ix = Object.fromEntries(SHARE_KEYS.map((k, i) => [k, i]));
+  const byJob = new Map(), byName = new Map();
+  for (let i = 1; i < aoa.length; i++){
+    const r = aoa[i], j = String(r[ix.job] || "").trim().toUpperCase(), n = String(r[ix.name] || "").trim();
+    if (j) byJob.set(j, r); if (n && String(r[ix.code] || "").trim() && !byName.has(n)) byName.set(n, r);
+  }
+  const fill = (row, k, v) => { v = String(v || "").trim(); if (v && !String(row[ix[k]] || "").trim()){ row[ix[k]] = v; return 1; } return 0; };
+  for (const c of closed){
+    const id = String(c.job_id || "").trim().toUpperCase(); if (!id) continue;
+    let row = byJob.get(id);
+    if (!row){   /* Job ที่ไม่มีทั้งใน Excel และ JOB Monitoring → เพิ่มใหม่ */
+      const nm = String(c.station_name || "").trim(), ref = byName.get(nm);
+      const pre = (nm.split(/\s+/)[0] || "").toUpperCase();
+      row = SHARE_KEYS.map(() => "");
+      row[ix.job] = id; row[ix.status] = "JOB Closed"; row[ix.name] = nm; row[ix.src] = "sms";
+      row[ix.code] = ref ? ref[ix.code] : String(c.station_id || "");
+      row[ix.brand] = ref ? ref[ix.brand] : (SMS_BRAND[pre] || pre);
+      if (ref){ ["province","sup","addr"].forEach(k => { row[ix[k]] = ref[ix[k]] || ""; }); }
+      aoa.push(row); byJob.set(id, row); res.added++;
+    }
+    if (!row[ix.src]) row[ix.src] = "excel+sms";
+    const o = fill(row, "other", c.other_text);
+    res.other += o;
+    res.filled += (o + fill(row, "fin", c.close_date) + fill(row, "inform", c.informer) + fill(row, "phone", c.phone)
+                + fill(row, "user", c.technician) + fill(row, "problem", c.problem) + fill(row, "open", c.open_date)) ? 1 : 0;
+  }
+  return res;
 }
 function mergeSMS(aoa, sms){
   const res = {added: 0, updated: 0};
